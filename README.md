@@ -13,12 +13,13 @@ command and does exactly one thing.
 | [ctxmeter](./ctxmeter) | Awareness | A live context-window gauge for AI coding CLIs that don't already have one (Claude Code users: use `/statusline` instead) |
 | [again](./again) | Awareness | Counts how many times you've had to repeat yourself to your AI agent this session |
 | [permit](./permit) | Safety | Diagnoses why a Claude Code permission rule silently doesn't apply |
+| [actually](./actually) | Trust | Cross-checks a "tests pass" claim against the real last test run in the same session |
 
 ## Why separate tools instead of one platform
 
 Each one is a narrow fix for a single, specific, well-evidenced annoyance —
 in the spirit of tools like `fzf`, `ripgrep`, and `atuin`, not a bundled
-suite you have to buy into all at once. Use one, use all five, doesn't
+suite you have to buy into all at once. Use one, use all six, doesn't
 matter — none of them depend on each other.
 
 ## Install
@@ -32,6 +33,7 @@ go install github.com/Soldsoul86/AAA/loopkill@latest
 go install github.com/Soldsoul86/AAA/ctxmeter@latest
 go install github.com/Soldsoul86/AAA/again@latest
 go install github.com/Soldsoul86/AAA/permit@latest
+go install github.com/Soldsoul86/AAA/actually@latest
 ```
 
 Or build from source today, before any release exists:
