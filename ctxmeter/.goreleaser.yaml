@@ -9,6 +9,9 @@ version: 2
 
 project_name: ctxmeter
 
+monorepo:
+  tag_prefix: "ctxmeter-"
+
 before:
   hooks:
     - go mod tidy

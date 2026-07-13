@@ -9,6 +9,9 @@ version: 2
 
 project_name: again
 
+monorepo:
+  tag_prefix: "again-"
+
 before:
   hooks:
     - go mod tidy
