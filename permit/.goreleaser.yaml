@@ -1,0 +1,59 @@
+# Release config for permit, one of the tools in the Soldsoul86/AAA monorepo.
+# Invoked from *inside* permit/ by the root
+# .github/workflows/release-permit.yml workflow (working-directory: permit).
+#
+# Test locally before ever tagging a real release:
+#   cd permit && goreleaser release --snapshot --clean
+version: 2
+
+project_name: permit
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - env:
+      - CGO_ENABLED=0
+    ldflags:
+      - -s -w -X main.version={{.Version}}
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+
+archives:
+  # .Version includes the build-metadata suffix used for cross-tool
+  # uniqueness (e.g. "0.1.0+permit") — using Major/Minor/Patch instead
+  # keeps the actual downloadable filenames clean.
+  - name_template: "{{ .ProjectName }}_{{ .Major }}.{{ .Minor }}.{{ .Patch }}_{{ .Os }}_{{ .Arch }}"
+    formats: [tar.gz]
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+
+checksum:
+  name_template: "checksums.txt"
+
+snapshot:
+  version_template: "{{ incpatch .Version }}-next"
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+
+brews:
+  - repository:
+      owner: Soldsoul86
+      name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
+    directory: Formula
+    homepage: "https://github.com/Soldsoul86/AAA/tree/main/permit"
+    description: "Makes Claude Code permission rules easy to write correctly and easy to diagnose."
+    license: "MIT"
