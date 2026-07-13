@@ -16,6 +16,22 @@ command and does exactly one thing.
 | [actually](./actually) | Trust | Cross-checks a "tests pass" claim against the real last test run in the same session |
 | [exists](./exists) | Trust | Checks whether a package your agent just installed (npm/PyPI) actually exists in the real registry |
 
+## See it catch something real
+
+Not staged output — the actual released binaries, run against a real
+transcript, making real calls where the tool needs to (exists really asks
+npm's registry; actually really parses the real failing test output).
+
+**[actually](./actually)** catches a "tests pass" claim that contradicts
+the last real test run:
+
+![actually catching a false "tests pass" claim in real time](./actually/demo.gif)
+
+**[exists](./exists)** catches a hallucinated package name before it's
+trusted:
+
+![exists catching a hallucinated package name in real time](./exists/demo.gif)
+
 ## Verified, not vibes
 
 Every tool here has a "Known limitations" and "Verified against real data"

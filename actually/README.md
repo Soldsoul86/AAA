@@ -2,6 +2,12 @@
 
 Cross-checks what your AI agent claims it did against what actually happened.
 
+![actually catching a real "tests pass" claim that contradicts the real last test run — the actual binary, no staged output](./demo.gif)
+
+The recording above is the real binary against a real transcript: the test
+run really failed, the claim text really says "All tests pass," and the
+mismatch is caught the same way it would be live.
+
 ```
 $ actually watch -claude-code
 actually: watching /Users/you/.claude/projects/.../session.jsonl
