@@ -13,6 +13,9 @@
 // config file. It may change without notice; if this stops finding
 // anything, that's the most likely reason, not a sign the project is
 // actually untrusted.
+//
+// This package is read-only — permit diagnoses trust status, it doesn't
+// change it.
 package trust
 
 import (
@@ -66,67 +69,4 @@ func CheckAt(projectDir, claudeJSONPath string) (Status, error) {
 		return Status{Checked: false}, nil
 	}
 	return Status{Checked: true, Trusted: entry.HasTrustDialogAccepted}, nil
-}
-
-// SetTrusted marks a project as trusted in the real ~/.claude.json,
-// creating its project entry if none exists. It touches only that one
-// project's hasTrustDialogAccepted field — every other key in the file
-// (including sensitive ones like OAuth account data) is read, preserved
-// byte-for-byte in structure, and written back untouched. The file's
-// permission mode is preserved exactly, not loosened.
-//
-// This bypasses a real security gate — Claude Code's workspace trust
-// dialog exists so a project can't silently gain capability the moment
-// you open it. Only call this for projects you already trust yourself.
-func SetTrusted(projectDir string) error {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return err
-	}
-	return SetTrustedAt(projectDir, filepath.Join(home, ".claude.json"))
-}
-
-// SetTrustedAt is SetTrusted with an explicit config file path, so it can
-// be tested against a fixture instead of the real ~/.claude.json.
-func SetTrustedAt(projectDir, claudeJSONPath string) error {
-	var mode os.FileMode = 0o600 // matches the real file's own permissions if it exists
-	raw := map[string]interface{}{}
-
-	if data, err := os.ReadFile(claudeJSONPath); err == nil {
-		if info, statErr := os.Stat(claudeJSONPath); statErr == nil {
-			mode = info.Mode()
-		}
-		if len(data) > 0 {
-			if err := json.Unmarshal(data, &raw); err != nil {
-				return fmt.Errorf("%s is not valid JSON, refusing to touch it: %w", claudeJSONPath, err)
-			}
-		}
-	} else if !os.IsNotExist(err) {
-		return err
-	}
-
-	projects, _ := raw["projects"].(map[string]interface{})
-	if projects == nil {
-		projects = map[string]interface{}{}
-	}
-
-	abs, err := filepath.Abs(projectDir)
-	if err != nil {
-		return err
-	}
-
-	entry, _ := projects[abs].(map[string]interface{})
-	if entry == nil {
-		entry = map[string]interface{}{}
-	}
-	entry["hasTrustDialogAccepted"] = true
-	projects[abs] = entry
-	raw["projects"] = projects
-
-	out, err := json.MarshalIndent(raw, "", "  ")
-	if err != nil {
-		return err
-	}
-	out = append(out, '\n')
-	return os.WriteFile(claudeJSONPath, out, mode)
 }

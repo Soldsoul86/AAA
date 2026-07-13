@@ -12,7 +12,7 @@ command and does exactly one thing.
 | [loopkill](./loopkill) | Awareness | Detects when your AI agent is stuck in a loop and interrupts it before it burns your quota |
 | [ctxmeter](./ctxmeter) | Awareness | A live context-window gauge for any AI coding CLI |
 | [again](./again) | Awareness | Counts how many times you've had to repeat yourself to your AI agent this session |
-| [permit](./permit) | Safety | Makes Claude Code permission rules easy to write correctly and easy to diagnose |
+| [permit](./permit) | Safety | Diagnoses why a Claude Code permission rule silently doesn't apply |
 
 ## Why separate tools instead of one platform
 

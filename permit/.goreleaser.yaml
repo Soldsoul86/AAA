@@ -55,5 +55,5 @@ brews:
       token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
     directory: Formula
     homepage: "https://github.com/Soldsoul86/AAA/tree/main/permit"
-    description: "Makes Claude Code permission rules easy to write correctly and easy to diagnose."
+    description: "Diagnoses why a Claude Code permission rule silently doesn't apply."
     license: "MIT"

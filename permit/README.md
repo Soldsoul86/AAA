@@ -1,12 +1,8 @@
 # permit
 
-Makes Claude Code permission rules easy to write correctly, and easy to
-diagnose when they silently don't apply.
+Diagnoses why a Claude Code permission rule silently doesn't apply.
 
 ```
-$ permit allow "Bash(npm run *)"
-permit: added "Bash(npm run *)" to .claude/settings.json
-
 $ permit doctor "Bash(git push origin main)"
 ✅ workspace trust: accepted
 ✅ all settings files are valid JSON
@@ -19,39 +15,46 @@ Claude Code's own docs are precise about this, and it's worth reading
 directly before assuming a bug: **file-edit "always allow" is documented to
 last only until session end, not permanently** — that's by design, not a
 bug most people expect. Bash command approvals *are* meant to persist
-permanently per-project, and when they don't, the most common documented
-cause is that **`permissions.allow` rules are silently ignored until you
-accept the workspace trust dialog for that project** — Claude Code reads
-the rules but doesn't apply them until then, with no obvious signal that
-this is what's happening.
+permanently per-project — Claude Code already does this natively, no tool
+needed, the first time you click "yes, don't ask again." When a rule still
+doesn't seem to work, the most common documented cause is that
+**`permissions.allow` rules are silently ignored until you accept the
+workspace trust dialog for that project** — Claude Code reads the rules
+but doesn't apply them until then, with no obvious signal that this is
+what's happening. That's the specific thing `permit doctor` checks for.
 
-permit doesn't try to fix Claude Code's permission engine or compete with
-it — that would mean reimplementing its real matching logic (compound
-command splitting, wrapper stripping, PowerShell AST parsing, and more),
-which is a large, security-relevant surface no small tool should casually
-duplicate. Instead, permit helps you **write correct, permanent rules using
-Claude Code's own real syntax**, and **checks the documented reasons** a
-rule might not be working.
+## What this deliberately does *not* do, and why
 
-## Commands
+Earlier versions of this tool also included `permit allow` (write a rule
+via CLI) and `permit trust` (skip the trust dialog). Both were removed
+after a direct, honest look at what they actually added: **Claude Code
+already provides both natively** — clicking "don't ask again" once writes
+the same rule, and accepting the trust dialog is one click. Wrapping a
+CLI around functionality that already exists as a single click isn't a
+fix, it's rework. Keeping them in would have made permit look like it
+solves something it doesn't.
 
-| Command | What it does |
-|---|---|
-| `permit allow <rule> [--user]` | Adds a permanent rule to `permissions.allow` — project-level by default, `--user` for `~/.claude/settings.json` |
-| `permit list` | Shows the merged allow/ask/deny rules across every settings source (local, project, user) — precedence spans multiple files, so seeing only one is how a shadowing rule gets missed |
-| `permit doctor [rule]` | Checks workspace trust status, settings JSON validity, and (if a rule is given) whether an existing deny/ask rule could be shadowing it |
-| `permit trust [--yes]` | Marks the current project as trusted, skipping Claude Code's one-time workspace trust dialog |
+What Claude Code does *not* provide natively is a way to find out *why* a
+rule you already have isn't working — that diagnostic gap is real, and
+that's the entire scope of what's left.
+
+permit also doesn't try to reimplement Claude Code's own permission
+engine as a competing decision-maker. That would mean duplicating its real
+matching logic (compound command splitting, wrapper stripping, PowerShell
+AST parsing, and more) — a large, security-relevant surface no small tool
+should casually take on.
+
+## Usage
+
+```
+permit doctor            # check trust status and settings JSON validity
+permit doctor "<rule>"   # also check whether that rule could be shadowed
+```
 
 Rules use Claude Code's real syntax exactly — see
 [the official permissions docs](https://code.claude.com/docs/en/permissions)
-for the full specification. Examples:
-
-```
-permit allow "Bash(npm run *)"
-permit allow "Bash(git commit *)"
-permit allow "Read(./.env)"
-permit allow "WebFetch(domain:example.com)"
-```
+for the full specification, e.g. `Bash(npm run *)`, `Read(./.env)`,
+`WebFetch(domain:example.com)`.
 
 ## How the trust check works
 
@@ -62,7 +65,7 @@ found by directly inspecting a real Claude Code config file on a real
 machine, and verified against real trusted/untrusted project entries. If
 Claude Code changes where it stores this, the check will stop finding
 anything (it fails safely — you'll see "no trust record found," not a
-false claim either way).
+false claim either way). permit only ever reads this file, never writes it.
 
 ## How the shadow-rule check works — and its real limits
 
@@ -80,28 +83,6 @@ involving mid-pattern wildcards (`Bash(git * main)`), compound commands,
 or process-wrapper stripping (`timeout`, `nice`, `xargs`, etc.). Treat a
 clean `permit doctor` result as "no obvious issue found," not a guarantee.
 
-## permit trust — read this before using it
-
-`permit trust` writes `hasTrustDialogAccepted: true` directly into
-`~/.claude.json` for the current project, using the same location `permit
-doctor` reads. This **bypasses a real security control**: the workspace
-trust dialog exists specifically so a project can't silently gain
-capability the moment you open it — a repo you didn't write yourself could
-otherwise ship a `.claude/settings.json` with dangerous allow rules that
-activate the instant you `cd` in and open Claude Code.
-
-`permit trust` never runs silently — without `--yes` it explains exactly
-what it's about to do and requires an explicit `y` to proceed. Use it for
-projects you're building yourself, where you already know what's in
-`.claude/settings.json` because you wrote it. Don't make it part of a
-default setup script for repositories you didn't personally review.
-
-Before this was added, it was verified against a real copy of an actual
-`~/.claude.json` (never the live file directly during testing) that every
-other key — including sensitive ones like OAuth account data — survives
-byte-for-byte untouched, and that the file's original permission mode
-(`0600`) is preserved, not loosened.
-
 ## Install
 
 ```
@@ -112,13 +93,7 @@ go install github.com/Soldsoul86/AAA/permit@latest
 
 - **Shadow-rule detection is best-effort**, not exhaustive — see above.
 - **The trust-check storage location is unofficial** and may change without notice.
-- **No hook-based auto-approval.** An earlier design for this tool
-  attempted to build a PreToolUse hook that would make its own allow/deny
-  decisions on every tool call. That was deliberately abandoned: it would
-  have meant re-implementing Claude Code's real permission-matching logic
-  independently, with real risk of subtly disagreeing with it — too risky
-  for a tool making security-relevant decisions, and genuinely out of
-  scope for "one tiny annoyance, done well."
+- **Read-only, on purpose.** permit never writes to any Claude Code config file.
 
 ## License
 

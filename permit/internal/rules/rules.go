@@ -46,39 +46,3 @@ func Parse(raw string) (Rule, error) {
 	}
 	return Rule{Tool: tool, Specifier: specifier, Raw: s}, nil
 }
-
-// MatchesCommand reports whether a Bash-style specifier pattern (using
-// Claude Code's wildcard syntax) matches a given command string.
-//
-// This implements exactly the semantics documented at
-// code.claude.com/docs/en/permissions: "*" matches any sequence of
-// characters including spaces, and can appear anywhere in the pattern. The
-// documented word-boundary behavior ("Bash(ls *) matches ls -la but not
-// lsof") falls out naturally from treating everything except "*" as a
-// literal match — no special-casing needed, and verified against the
-// documentation's own examples in the test suite.
-//
-// The ":*" trailing suffix is normalized to " *" first, per the
-// documented equivalence.
-func MatchesCommand(pattern, command string) bool {
-	if strings.HasSuffix(pattern, ":*") {
-		pattern = strings.TrimSuffix(pattern, ":*") + " *"
-	}
-	// Join every literal segment (regex-escaped) with ".*" for each "*" in
-	// the pattern. Splitting "ls *" on "*" gives ["ls ", ""], which joins
-	// to "ls .*" — the literal trailing space in "ls " is what produces
-	// the documented word-boundary behavior (it must match an actual
-	// space in the command), with no special-casing required.
-	segments := strings.Split(pattern, "*")
-	escaped := make([]string, len(segments))
-	for i, s := range segments {
-		escaped[i] = regexp.QuoteMeta(s)
-	}
-	pat := "^" + strings.Join(escaped, ".*") + "$"
-
-	re, err := regexp.Compile(pat)
-	if err != nil {
-		return false
-	}
-	return re.MatchString(command)
-}
