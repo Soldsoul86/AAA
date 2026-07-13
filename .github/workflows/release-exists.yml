@@ -1,0 +1,55 @@
+name: release-exists
+
+# This repo holds several independent tools. Each has its own release
+# workflow, triggered only by its own tag prefix, so tagging one tool
+# never triggers a release for the others.
+on:
+  push:
+    tags:
+      - "exists-v*"
+
+permissions:
+  contents: write
+
+jobs:
+  goreleaser:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: exists
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Compute a per-tool-unique version for goreleaser
+        id: version
+        run: |
+          # "exists-v0.1.0" -> "v0.1.0". goreleaser needs valid semver
+          # to parse, so the raw prefixed tag can't be used directly.
+          BASE="${GITHUB_REF_NAME#exists-}"
+          # Append the tool name as semver build metadata ("+exists").
+          # Per the semver spec, build metadata does not affect precedence
+          # or prerelease status, so "go install ...@latest" still resolves
+          # correctly — but it keeps every tool's release tag unique, so
+          # exists's v0.1.0 can never collide with another tool's v0.1.0
+          # in this shared repo.
+          VERSION="${BASE}+exists"
+          echo "$VERSION"
+          git tag -f "$VERSION" "$GITHUB_SHA"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
+
+      - uses: goreleaser/goreleaser-action@v6
+        with:
+          distribution: goreleaser
+          version: "~> v2"
+          args: release --clean
+          workdir: exists
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HOMEBREW_TAP_GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
+          GORELEASER_CURRENT_TAG: ${{ steps.version.outputs.version }}

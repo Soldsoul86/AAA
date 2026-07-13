@@ -14,12 +14,13 @@ command and does exactly one thing.
 | [again](./again) | Awareness | Counts how many times you've had to repeat yourself to your AI agent this session |
 | [permit](./permit) | Safety | Diagnoses why a Claude Code permission rule silently doesn't apply |
 | [actually](./actually) | Trust | Cross-checks a "tests pass" claim against the real last test run in the same session |
+| [exists](./exists) | Trust | Checks whether a package your agent just installed (npm/PyPI) actually exists in the real registry |
 
 ## Why separate tools instead of one platform
 
 Each one is a narrow fix for a single, specific, well-evidenced annoyance —
 in the spirit of tools like `fzf`, `ripgrep`, and `atuin`, not a bundled
-suite you have to buy into all at once. Use one, use all six, doesn't
+suite you have to buy into all at once. Use one, use all seven, doesn't
 matter — none of them depend on each other.
 
 ## Install
@@ -34,6 +35,7 @@ go install github.com/Soldsoul86/AAA/ctxmeter@latest
 go install github.com/Soldsoul86/AAA/again@latest
 go install github.com/Soldsoul86/AAA/permit@latest
 go install github.com/Soldsoul86/AAA/actually@latest
+go install github.com/Soldsoul86/AAA/exists@latest
 ```
 
 Or build from source today, before any release exists:

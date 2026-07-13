@@ -1,0 +1,63 @@
+# Release config for exists, one of the tools in the Soldsoul86/AAA monorepo.
+# This is a subfolder module — goreleaser is invoked from *inside*
+# exists/ by the root .github/workflows/release-exists.yml workflow
+# (working-directory: exists), so all paths here are relative to this folder.
+#
+# Test locally before ever tagging a real release:
+#   cd exists && GORELEASER_CURRENT_TAG=v0.1.0+exists goreleaser release --snapshot --clean
+# (the explicit tag override avoids goreleaser picking up another tool's
+# tag in this shared repo, which it will otherwise do during local testing)
+version: 2
+
+project_name: exists
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+
+archives:
+  # .Version includes the build-metadata suffix used for cross-tool
+  # uniqueness (e.g. "0.1.0+exists") — using Major/Minor/Patch instead
+  # keeps the actual downloadable filenames clean.
+  - name_template: "{{ .ProjectName }}_{{ .Major }}.{{ .Minor }}.{{ .Patch }}_{{ .Os }}_{{ .Arch }}"
+    formats: [tar.gz]
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+
+checksum:
+  name_template: "checksums.txt"
+
+snapshot:
+  version_template: "{{ incpatch .Version }}-next"
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+
+# Publishes a Homebrew formula to a separate tap repo, shared across all
+# tools in this monorepo. Requires a HOMEBREW_TAP_GITHUB_TOKEN secret with
+# write access to that repo — see docs/RELEASING.md.
+brews:
+  - repository:
+      owner: Soldsoul86
+      name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
+    directory: Formula
+    homepage: "https://github.com/Soldsoul86/AAA/tree/main/exists"
+    description: "Checks whether a package your AI agent just installed actually exists in the real registry."
+    license: "MIT"
