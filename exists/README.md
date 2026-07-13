@@ -5,6 +5,12 @@ actually exists in the real registry, right now — catching a hallucinated
 package name before you find out from a build failure, or worse, before
 someone squats that exact name later and it silently starts resolving.
 
+![exists catching a real hallucinated package in real time — the actual binary, a real npm registry lookup, not staged output](./demo.gif)
+
+The recording above is the real binary, the real npm registry, no staged
+output — `left-pad-ultra-retry-9000` is a name that genuinely doesn't
+exist, checked live at the moment the GIF was recorded.
+
 ```
 $ exists watch -claude-code
 exists: watching /Users/you/.claude/projects/.../session.jsonl
