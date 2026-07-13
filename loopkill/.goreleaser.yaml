@@ -26,7 +26,11 @@ builds:
       - arm64
 
 archives:
-  - formats: [tar.gz]
+  # .Version includes the build-metadata suffix used for cross-tool
+  # uniqueness (e.g. "0.1.0+loopkill") — using Major/Minor/Patch instead
+  # keeps the actual downloadable filenames clean.
+  - name_template: "{{ .ProjectName }}_{{ .Major }}.{{ .Minor }}.{{ .Patch }}_{{ .Os }}_{{ .Arch }}"
+    formats: [tar.gz]
     format_overrides:
       - goos: windows
         formats: [zip]
