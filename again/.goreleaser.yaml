@@ -51,6 +51,7 @@ brews:
   - repository:
       owner: Soldsoul86
       name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
     directory: Formula
     homepage: "https://github.com/Soldsoul86/AAA/tree/main/again"
     description: "Counts how many times you've had to repeat yourself to your AI agent this session."

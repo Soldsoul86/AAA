@@ -51,6 +51,7 @@ brews:
   - repository:
       owner: Soldsoul86
       name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
     directory: Formula
     homepage: "https://github.com/Soldsoul86/AAA/tree/main/ctxmeter"
     description: "A live context-window gauge for any AI coding CLI."

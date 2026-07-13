@@ -22,13 +22,20 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Strip the "checkpoint-" prefix into a local-only tag for goreleaser
+      - name: Compute a per-tool-unique version for goreleaser
         id: version
         run: |
-          VERSION="${GITHUB_REF_NAME#checkpoint-}"
+          # "checkpoint-v0.1.0" -> "v0.1.0". goreleaser needs valid semver
+          # to parse, so the raw prefixed tag can't be used directly.
+          BASE="${GITHUB_REF_NAME#checkpoint-}"
+          # Append the tool name as semver build metadata ("+checkpoint").
+          # Per the semver spec, build metadata does not affect precedence
+          # or prerelease status, so "go install ...@latest" still resolves
+          # correctly — but it keeps every tool's release tag unique, so
+          # checkpoint's v0.1.0 can never collide with loopkill's v0.1.0
+          # in this shared repo.
+          VERSION="${BASE}+checkpoint"
           echo "$VERSION"
-          # Local to this runner's checkout only — never pushed, so it can
-          # never collide with another tool's version number in this repo.
           git tag "$VERSION" "$GITHUB_SHA"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 

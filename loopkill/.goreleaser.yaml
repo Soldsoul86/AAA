@@ -51,6 +51,7 @@ brews:
   - repository:
       owner: Soldsoul86
       name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
     directory: Formula
     homepage: "https://github.com/Soldsoul86/AAA/tree/main/loopkill"
     description: "Detects when your AI agent is stuck in a loop and interrupts it before it burns your quota."
