@@ -114,41 +114,57 @@ func cmdReport(args []string) {
 	fmt.Println("installed, which would require guessing what you'd have done otherwise.")
 }
 
-// locateClaudeCodeSession mirrors ctxmeter's auto-detection — same
-// best-effort, unconfirmed path pattern, same caveat applies.
+// locateClaudeCodeSession scans every project directory under
+// ~/.claude/projects/ and returns the most recently modified .jsonl file
+// across all of them.
+//
+// This used to encode the current working directory (cwd with / replaced
+// by -) and look up a single matching project folder. That was wrong:
+// confirmed directly against a real session where the process's cwd (a
+// subdirectory the agent had cd'd into) didn't match the directory Claude
+// Code actually keyed the session under (the directory the session was
+// launched from). Scanning for "whichever session is actively being
+// written to right now" sidesteps the encoding question entirely — same
+// fix applied to actually's auto-detection, which was built this way from
+// the start.
 func locateClaudeCodeSession() (string, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return "", err
 	}
-	cwd, err := os.Getwd()
-	if err != nil {
-		return "", err
-	}
-	encoded := strings.ReplaceAll(cwd, "/", "-")
-	dir := filepath.Join(home, ".claude", "projects", encoded)
+	root := filepath.Join(home, ".claude", "projects")
 
-	entries, err := os.ReadDir(dir)
+	projectDirs, err := os.ReadDir(root)
 	if err != nil {
-		return "", fmt.Errorf("no project directory found at %s (use -file <path> instead)", dir)
+		return "", fmt.Errorf("no %s directory found (use -file <path> instead)", root)
 	}
+
 	type candidate struct {
 		path    string
 		modTime time.Time
 	}
 	var found []candidate
-	for _, e := range entries {
-		if e.IsDir() || !strings.HasSuffix(e.Name(), ".jsonl") {
+	for _, pd := range projectDirs {
+		if !pd.IsDir() {
 			continue
 		}
-		info, err := e.Info()
+		entries, err := os.ReadDir(filepath.Join(root, pd.Name()))
 		if err != nil {
 			continue
 		}
-		found = append(found, candidate{filepath.Join(dir, e.Name()), info.ModTime()})
+		for _, e := range entries {
+			if e.IsDir() || !strings.HasSuffix(e.Name(), ".jsonl") {
+				continue
+			}
+			info, err := e.Info()
+			if err != nil {
+				continue
+			}
+			found = append(found, candidate{filepath.Join(root, pd.Name(), e.Name()), info.ModTime()})
+		}
 	}
 	if len(found) == 0 {
-		return "", fmt.Errorf("no .jsonl session files found in %s", dir)
+		return "", fmt.Errorf("no .jsonl session files found under %s (use -file <path> instead)", root)
 	}
 	sort.Slice(found, func(i, j int) bool { return found[i].modTime.After(found[j].modTime) })
 	return found[0].path, nil

@@ -45,12 +45,16 @@ again report
 ```
 
 - **`-file PATH`** watches a JSONL transcript directly.
-- **`-claude-code`** is the same best-effort auto-detection used by
-  [ctxmeter](https://github.com/Soldsoul86/AAA/tree/main/ctxmeter) — an *observed*,
-  not officially documented, path pattern
-  (`~/.claude/projects/<this-project>/*.jsonl`). If your Claude Code
-  version stores things differently, this will find nothing and tell you
-  so — use `-file` directly if you know the right path.
+- **`-claude-code`** is the same auto-detection used by
+  [ctxmeter](https://github.com/Soldsoul86/AAA/tree/main/ctxmeter): it scans
+  every project directory under `~/.claude/projects/` and watches whichever
+  `.jsonl` file was modified most recently, rather than guessing a single
+  folder from the current working directory (an earlier approach confirmed
+  wrong against a real session — the process's cwd didn't match the
+  directory Claude Code actually keyed the session under). If you have
+  multiple Claude Code windows open, this follows whichever was most
+  recently active, not necessarily the one you meant — use `-file` if you
+  need to pin a specific session.
 - **`-threshold`** (default 0.5) — similarity score above which two prompts count as "the same ask."
 - **`-nudge`** (default 3) — print a suggestion to start fresh after this many repeats.
 
@@ -89,11 +93,16 @@ couple of commonly-seen shapes defensively:
 - `{"type":"user","message":{"role":"user","content":...}}` (a nested
   wrapper some session-log formats use)
 
-All three shapes are unit tested against synthetic fixtures. **None of
-these have been verified against a real Claude Code transcript file** — if
-`again` never detects anything, that's the most likely reason. Please open
-an issue with one redacted sample line rather than assume it's silently
-working.
+All three shapes are unit tested against synthetic fixtures. The nested
+wrapper shape (`{"type":"user","message":{"content":[...]}}`) is confirmed
+correct against a real Claude Code transcript — verified independently
+while building [actually](https://github.com/Soldsoul86/AAA/tree/main/actually),
+and confirmed again live: running `again watch -claude-code` against this
+project's own real session correctly detected repeated prompts in real
+time. The other two shapes remain unverified against a real file — if
+`again` never detects anything on a setup that isn't Claude Code, that's
+the most likely reason. Please open an issue with one redacted sample line
+rather than assume it's silently working.
 
 ## Install
 
