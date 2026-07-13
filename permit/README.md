@@ -40,6 +40,7 @@ rule might not be working.
 | `permit allow <rule> [--user]` | Adds a permanent rule to `permissions.allow` — project-level by default, `--user` for `~/.claude/settings.json` |
 | `permit list` | Shows the merged allow/ask/deny rules across every settings source (local, project, user) — precedence spans multiple files, so seeing only one is how a shadowing rule gets missed |
 | `permit doctor [rule]` | Checks workspace trust status, settings JSON validity, and (if a rule is given) whether an existing deny/ask rule could be shadowing it |
+| `permit trust [--yes]` | Marks the current project as trusted, skipping Claude Code's one-time workspace trust dialog |
 
 Rules use Claude Code's real syntax exactly — see
 [the official permissions docs](https://code.claude.com/docs/en/permissions)
@@ -78,6 +79,28 @@ Claude Code's actual matching engine. It will miss real shadowing in cases
 involving mid-pattern wildcards (`Bash(git * main)`), compound commands,
 or process-wrapper stripping (`timeout`, `nice`, `xargs`, etc.). Treat a
 clean `permit doctor` result as "no obvious issue found," not a guarantee.
+
+## permit trust — read this before using it
+
+`permit trust` writes `hasTrustDialogAccepted: true` directly into
+`~/.claude.json` for the current project, using the same location `permit
+doctor` reads. This **bypasses a real security control**: the workspace
+trust dialog exists specifically so a project can't silently gain
+capability the moment you open it — a repo you didn't write yourself could
+otherwise ship a `.claude/settings.json` with dangerous allow rules that
+activate the instant you `cd` in and open Claude Code.
+
+`permit trust` never runs silently — without `--yes` it explains exactly
+what it's about to do and requires an explicit `y` to proceed. Use it for
+projects you're building yourself, where you already know what's in
+`.claude/settings.json` because you wrote it. Don't make it part of a
+default setup script for repositories you didn't personally review.
+
+Before this was added, it was verified against a real copy of an actual
+`~/.claude.json` (never the live file directly during testing) that every
+other key — including sensitive ones like OAuth account data — survives
+byte-for-byte untouched, and that the file's original permission mode
+(`0600`) is preserved, not loosened.
 
 ## Install
 

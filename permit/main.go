@@ -8,6 +8,7 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
 	"os"
 	"os/exec"
@@ -44,6 +45,10 @@ Usage:
   permit allow <rule> [--user]   add a permanent allow rule (project by default, --user for ~/.claude/settings.json)
   permit list                    show the merged allow/ask/deny rules across all settings sources
   permit doctor [rule]           check the documented reasons a rule might silently not apply
+  permit trust [--yes]           mark this project as trusted, skipping Claude Code's one-time workspace trust dialog
+
+permit trust bypasses a real security gate — only use it on projects you
+already trust yourself. It will not silently run without confirmation.
 
 Rules use Claude Code's own syntax exactly, e.g.:
   permit allow "Bash(npm run *)"
@@ -68,6 +73,8 @@ func main() {
 		err = cmdList(os.Args[2:])
 	case "doctor":
 		err = cmdDoctor(os.Args[2:])
+	case "trust":
+		err = cmdTrust(os.Args[2:])
 	case "-h", "--help", "help":
 		fmt.Print(usage)
 		return
@@ -244,4 +251,36 @@ func shadows(existing, candidate rules.Rule) bool {
 	}
 	trimmed := strings.TrimSuffix(strings.TrimSuffix(existing.Specifier, "*"), " ")
 	return trimmed != "" && strings.HasPrefix(candidate.Specifier, trimmed)
+}
+
+func cmdTrust(args []string) error {
+	yes := false
+	for _, a := range args {
+		if a == "--yes" || a == "-yes" || a == "-y" {
+			yes = true
+		}
+	}
+
+	root := projectRoot()
+	fmt.Printf("This marks %s as trusted in ~/.claude.json, skipping Claude Code's\n", root)
+	fmt.Println("one-time workspace trust dialog. That dialog exists so a project can't")
+	fmt.Println("silently gain capability the moment you open it — only do this for")
+	fmt.Println("projects you already trust yourself.")
+	fmt.Println()
+
+	if !yes {
+		fmt.Print("Continue? [y/N] ")
+		reader := bufio.NewReader(os.Stdin)
+		line, _ := reader.ReadString('\n')
+		if line != "y\n" && line != "Y\n" {
+			fmt.Println("permit: aborted")
+			return nil
+		}
+	}
+
+	if err := trust.SetTrusted(root); err != nil {
+		return err
+	}
+	fmt.Printf("permit: %s is now marked trusted\n", root)
+	return nil
 }
