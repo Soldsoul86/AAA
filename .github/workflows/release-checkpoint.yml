@@ -36,7 +36,7 @@ jobs:
           # in this shared repo.
           VERSION="${BASE}+checkpoint"
           echo "$VERSION"
-          git tag "$VERSION" "$GITHUB_SHA"
+          git tag -f "$VERSION" "$GITHUB_SHA"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
       - uses: actions/setup-go@v5
