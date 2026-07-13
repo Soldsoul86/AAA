@@ -21,9 +21,21 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - name: Strip the "checkpoint-" prefix into a local-only tag for goreleaser
+        id: version
+        run: |
+          VERSION="${GITHUB_REF_NAME#checkpoint-}"
+          echo "$VERSION"
+          # Local to this runner's checkout only — never pushed, so it can
+          # never collide with another tool's version number in this repo.
+          git tag "$VERSION" "$GITHUB_SHA"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
       - uses: actions/setup-go@v5
         with:
           go-version: "1.25"
+
       - uses: goreleaser/goreleaser-action@v6
         with:
           distribution: goreleaser
@@ -33,9 +45,4 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           HOMEBREW_TAP_GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
-          # goreleaser normally derives the version from "git describe" on
-          # the whole repo, which would get confused by other tools' tags
-          # in this monorepo. Overriding it explicitly keeps each tool's
-          # release scoped to its own tag. NOT independently verified end
-          # to end (see docs/RELEASING.md) — test with --snapshot first.
-          GORELEASER_CURRENT_TAG: ${{ github.ref_name }}
+          GORELEASER_CURRENT_TAG: ${{ steps.version.outputs.version }}

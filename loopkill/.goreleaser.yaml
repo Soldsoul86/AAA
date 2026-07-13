@@ -9,8 +9,6 @@ version: 2
 
 project_name: loopkill
 
-monorepo:
-  tag_prefix: "loopkill-"
 
 before:
   hooks:

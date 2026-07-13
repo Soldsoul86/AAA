@@ -9,8 +9,6 @@ version: 2
 
 project_name: checkpoint
 
-monorepo:
-  tag_prefix: "checkpoint-"
 
 before:
   hooks:
