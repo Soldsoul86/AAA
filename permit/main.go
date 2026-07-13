@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime/debug"
 	"strings"
 
 	"github.com/Soldsoul86/AAA/permit/internal/rules"
@@ -20,8 +21,22 @@ import (
 )
 
 // version is set at build time via -ldflags "-X main.version=vX.Y.Z" by
-// goreleaser. Defaults to "dev" for local builds.
+// goreleaser. Defaults to "dev" for local builds and is never set at all
+// for "go install" builds — that path doesn't run our ldflags, only
+// goreleaser's cross-compile step does. effectiveVersion() falls back to
+// Go's own module version (embedded automatically by "go install") so
+// --version is accurate either way, not just for goreleaser-built binaries.
 var version = "dev"
+
+func effectiveVersion() string {
+	if version != "dev" {
+		return version
+	}
+	if bi, ok := debug.ReadBuildInfo(); ok && bi.Main.Version != "" && bi.Main.Version != "(devel)" {
+		return bi.Main.Version
+	}
+	return version
+}
 
 const usage = `permit — makes Claude Code permission rules easy to write and diagnose
 
@@ -57,7 +72,7 @@ func main() {
 		fmt.Print(usage)
 		return
 	case "-version", "--version", "version":
-		fmt.Println("permit", version)
+		fmt.Println("permit", effectiveVersion())
 		return
 	default:
 		fmt.Fprintf(os.Stderr, "permit: unknown command %q\n\n", os.Args[1])
