@@ -1,0 +1,41 @@
+name: release-ctxmeter
+
+# This repo holds four independent tools. Each has its own release
+# workflow, triggered only by its own tag prefix, so tagging one tool
+# never triggers a release for the others.
+on:
+  push:
+    tags:
+      - "ctxmeter-v*"
+
+permissions:
+  contents: write
+
+jobs:
+  goreleaser:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ctxmeter
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
+      - uses: goreleaser/goreleaser-action@v6
+        with:
+          distribution: goreleaser
+          version: "~> v2"
+          args: release --clean
+          workdir: ctxmeter
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HOMEBREW_TAP_GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
+          # goreleaser normally derives the version from "git describe" on
+          # the whole repo, which would get confused by other tools' tags
+          # in this monorepo. Overriding it explicitly keeps each tool's
+          # release scoped to its own tag. NOT independently verified end
+          # to end (see docs/RELEASING.md) — test with --snapshot first.
+          GORELEASER_CURRENT_TAG: ${{ github.ref_name }}

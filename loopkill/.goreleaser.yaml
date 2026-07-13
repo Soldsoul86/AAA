@@ -1,0 +1,56 @@
+# Release config for loopkill, one of four tools in the Soldsoul86/AAA monorepo.
+# This is a subfolder module — goreleaser is invoked from *inside*
+# loopkill/ by the root .github/workflows/release-loopkill.yml workflow
+# (working-directory: loopkill), so all paths here are relative to this folder.
+#
+# Test locally before ever tagging a real release:
+#   cd loopkill && goreleaser release --snapshot --clean
+version: 2
+
+project_name: loopkill
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+
+archives:
+  - formats: [tar.gz]
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+
+checksum:
+  name_template: "checksums.txt"
+
+snapshot:
+  version_template: "{{ incpatch .Version }}-next"
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+
+# Publishes a Homebrew formula to a separate tap repo, shared across all
+# four tools in this monorepo. Requires a HOMEBREW_TAP_GITHUB_TOKEN secret
+# with write access to that repo — see docs/RELEASING.md.
+brews:
+  - repository:
+      owner: Soldsoul86
+      name: homebrew-tap
+    directory: Formula
+    homepage: "https://github.com/Soldsoul86/AAA/tree/main/loopkill"
+    description: "Detects when your AI agent is stuck in a loop and interrupts it before it burns your quota."
+    license: "MIT"
