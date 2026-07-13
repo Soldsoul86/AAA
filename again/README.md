@@ -41,6 +41,7 @@ genuinely different-but-topically-related prompts).
 ```
 again watch -file PATH [-threshold F] [-nudge N] [-interval MS]
 again watch -claude-code [-threshold F] [-nudge N] [-interval MS]
+again report
 ```
 
 - **`-file PATH`** watches a JSONL transcript directly.
@@ -52,6 +53,29 @@ again watch -claude-code [-threshold F] [-nudge N] [-interval MS]
   so — use `-file` directly if you know the right path.
 - **`-threshold`** (default 0.5) — similarity score above which two prompts count as "the same ask."
 - **`-nudge`** (default 3) — print a suggestion to start fresh after this many repeats.
+
+## Measuring what it actually costs — not what it "saves"
+
+```
+$ again report
+again: 3 repeated prompt(s) detected across all tracked sessions
+again: ~412 tokens measured in those repeated prompts alone
+```
+
+Every detected repeat is logged to `~/.again/savings.jsonl` with the
+**real, measured token count of that specific repeated prompt** — using
+the same rough ~4-characters-per-token approximation as
+[ctxmeter](https://github.com/Soldsoul86/AAA/tree/main/ctxmeter), not a
+real tokenizer. `again report` sums this across every session you've ever
+watched, cumulatively, stored locally, never uploaded anywhere.
+
+Deliberately **not** called "tokens saved." Saved implies a counterfactual
+— what would have happened if again weren't installed — and that's not
+something this tool (or any tool without a time machine) can actually
+know. What it reports is real and verifiable: tokens spent on prompts
+that were, by the same measure the live warning uses, substantially
+repeating something already said. What you do with that number — restart
+sooner, write a project rule instead, ignore it — is up to you.
 
 ## Extracting user turns
 

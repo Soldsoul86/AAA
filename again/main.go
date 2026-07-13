@@ -13,6 +13,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Soldsoul86/AAA/again/internal/estimate"
+	"github.com/Soldsoul86/AAA/again/internal/savings"
 	"github.com/Soldsoul86/AAA/again/internal/similar"
 	"github.com/Soldsoul86/AAA/again/internal/transcript"
 )
@@ -22,8 +24,9 @@ const usage = `again — counts how many times you've had to repeat yourself to 
 Usage:
   again watch -file PATH [-threshold F] [-nudge N] [-interval MS]
   again watch -claude-code [-threshold F] [-nudge N] [-interval MS]
+  again report
 
-Flags:
+Flags (watch):
   -file PATH      the session transcript to watch (JSONL, one message per line)
   -claude-code    best-effort: auto-locate the most recently modified
                   session file under ~/.claude/projects/<this-project>/
@@ -35,21 +38,39 @@ again compares each new prompt you send against your recent prompts using a
 simple word-overlap score — not real language understanding, just a
 transparent, explainable heuristic. See the README for what it can and
 can't reliably catch.
+
+Every detected repeat is logged to ~/.again/savings.jsonl with its real,
+measured token count (not an estimate of tokens "saved" — that would
+require guessing a counterfactual). "again report" sums this up.
 `
 
 func main() {
-	if len(os.Args) < 2 || os.Args[1] != "watch" {
+	if len(os.Args) < 2 {
 		fmt.Print(usage)
 		os.Exit(2)
 	}
 
+	switch os.Args[1] {
+	case "watch":
+		cmdWatch(os.Args[2:])
+	case "report":
+		cmdReport(os.Args[2:])
+	case "-h", "--help", "help":
+		fmt.Print(usage)
+	default:
+		fmt.Print(usage)
+		os.Exit(2)
+	}
+}
+
+func cmdWatch(args []string) {
 	fs := flag.NewFlagSet("watch", flag.ExitOnError)
 	file := fs.String("file", "", "transcript file to watch")
 	claudeCode := fs.Bool("claude-code", false, "auto-locate the current project's Claude Code session file")
 	threshold := fs.Float64("threshold", 0.5, "similarity threshold")
 	nudge := fs.Int("nudge", 3, "repeats before suggesting a restart")
 	intervalMs := fs.Int("interval", 1000, "poll interval in milliseconds")
-	fs.Parse(os.Args[2:])
+	fs.Parse(args)
 
 	path := *file
 	if *claudeCode {
@@ -67,6 +88,30 @@ func main() {
 	}
 
 	watch(path, *threshold, *nudge, time.Duration(*intervalMs)*time.Millisecond)
+}
+
+func cmdReport(args []string) {
+	logPath, err := savings.LogPath()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "again:", err)
+		os.Exit(1)
+	}
+	entries, err := savings.ReadAll(logPath)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "again:", err)
+		os.Exit(1)
+	}
+	s := savings.Summarize(entries)
+	if s.Count == 0 {
+		fmt.Println("again: no repeats detected yet — run 'again watch' during a session first")
+		return
+	}
+	fmt.Printf("again: %d repeated prompt(s) detected across all tracked sessions\n", s.Count)
+	fmt.Printf("again: ~%d tokens measured in those repeated prompts alone\n", s.TotalTokens)
+	fmt.Println()
+	fmt.Println("This is a real, measured count of tokens spent re-sending something")
+	fmt.Println("already said — not an estimate of tokens \"saved\" by having again")
+	fmt.Println("installed, which would require guessing what you'd have done otherwise.")
 }
 
 // locateClaudeCodeSession mirrors ctxmeter's auto-detection — same
@@ -116,6 +161,11 @@ func watch(path string, threshold float64, nudgeAt int, interval time.Duration) 
 	var history []string
 	repeats := 0
 
+	logPath, logErr := savings.LogPath()
+	if logErr != nil {
+		fmt.Fprintf(os.Stderr, "again: could not resolve savings log path, repeats won't be recorded: %v\n", logErr)
+	}
+
 	fmt.Fprintln(os.Stderr, "again: waiting for prompts...")
 
 	for {
@@ -146,7 +196,7 @@ func watch(path string, threshold float64, nudgeAt int, interval time.Duration) 
 				if !ok || strings.TrimSpace(text) == "" {
 					continue
 				}
-				processPrompt(text, &history, &repeats, threshold, nudgeAt)
+				processPrompt(text, &history, &repeats, threshold, nudgeAt, path, logPath)
 			}
 			offset = info.Size()
 		}()
@@ -154,7 +204,7 @@ func watch(path string, threshold float64, nudgeAt int, interval time.Duration) 
 	}
 }
 
-func processPrompt(text string, history *[]string, repeats *int, threshold float64, nudgeAt int) {
+func processPrompt(text string, history *[]string, repeats *int, threshold float64, nudgeAt int, sourceFile, logPath string) {
 	best := 0.0
 	bestAgo := 0
 	for i, h := range *history {
@@ -174,6 +224,17 @@ func processPrompt(text string, history *[]string, repeats *int, threshold float
 		fmt.Fprintf(os.Stderr, "again: this looks similar (%.0f%%) to something you said %d prompt(s) ago — you've repeated yourself %d time(s) this session\n", best*100, bestAgo, *repeats)
 		if *repeats == nudgeAt {
 			fmt.Fprintln(os.Stderr, "again: that's a few repeats now — might be worth starting a fresh session instead of re-explaining again")
+		}
+		if logPath != "" {
+			entry := savings.Entry{
+				Time:            time.Now(),
+				EstimatedTokens: estimate.Tokens(text),
+				SimilarityPct:   best * 100,
+				SourceFile:      sourceFile,
+			}
+			if err := savings.Append(logPath, entry); err != nil {
+				fmt.Fprintf(os.Stderr, "again: could not record this repeat to the savings log: %v\n", err)
+			}
 		}
 	}
 }

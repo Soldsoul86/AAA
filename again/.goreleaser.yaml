@@ -9,7 +9,6 @@ version: 2
 
 project_name: again
 
-
 before:
   hooks:
     - go mod tidy
@@ -26,11 +25,7 @@ builds:
       - arm64
 
 archives:
-  # .Version includes the build-metadata suffix used for cross-tool
-  # uniqueness (e.g. "0.1.0+again") — using Major/Minor/Patch instead
-  # keeps the actual downloadable filenames clean.
-  - name_template: "{{ .ProjectName }}_{{ .Major }}.{{ .Minor }}.{{ .Patch }}_{{ .Os }}_{{ .Arch }}"
-    formats: [tar.gz]
+  - formats: [tar.gz]
     format_overrides:
       - goos: windows
         formats: [zip]
@@ -55,7 +50,6 @@ brews:
   - repository:
       owner: Soldsoul86
       name: homebrew-tap
-      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
     directory: Formula
     homepage: "https://github.com/Soldsoul86/AAA/tree/main/again"
     description: "Counts how many times you've had to repeat yourself to your AI agent this session."
