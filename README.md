@@ -8,9 +8,9 @@ command and does exactly one thing.
 
 | Tool | Category | What it does |
 |---|---|---|
-| [checkpoint](./checkpoint) | Safety | Automatic, zero-config git checkpoints before your AI agent touches anything |
+| [checkpoint](./checkpoint) | Safety | Automatic git checkpoints before your AI agent runs a bash command — the gap Claude Code's native `/rewind` doesn't cover |
 | [loopkill](./loopkill) | Awareness | Detects when your AI agent is stuck in a loop and interrupts it before it burns your quota |
-| [ctxmeter](./ctxmeter) | Awareness | A live context-window gauge for any AI coding CLI |
+| [ctxmeter](./ctxmeter) | Awareness | A live context-window gauge for AI coding CLIs that don't already have one (Claude Code users: use `/statusline` instead) |
 | [again](./again) | Awareness | Counts how many times you've had to repeat yourself to your AI agent this session |
 | [permit](./permit) | Safety | Diagnoses why a Claude Code permission rule silently doesn't apply |
 

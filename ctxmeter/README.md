@@ -1,6 +1,6 @@
 # ctxmeter
 
-A live context-window gauge for any AI coding CLI.
+A live context-window gauge for AI coding CLIs that don't already have one.
 
 ```
 $ claude | ctxmeter watch -max 200000
@@ -10,6 +10,20 @@ $ claude | ctxmeter watch -max 200000
 Nobody knows how close they are to compaction until it happens and wipes
 their working memory. ctxmeter is a small, always-visible answer to "how
 full am I right now."
+
+## If you're using Claude Code, use `/statusline` instead
+
+Claude Code has a native `/statusline` that can show context usage directly
+in its own UI, with no piping, no separate process, and access to real
+internal state rather than an outside estimate. If you're only ever running
+Claude Code, set that up and skip this tool — it will do a more accurate job
+than ctxmeter's character-count approximation ever can.
+
+ctxmeter earns its place for everything `/statusline` doesn't reach: Cursor,
+Codex, Aider, Gemini CLI, or any other CLI agent with no built-in context
+gauge. The `-claude-code` flag below exists mainly so the same binary works
+uniformly across tools if you're switching between several — not as the
+primary reason to install it.
 
 ## Usage
 

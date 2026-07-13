@@ -1,5 +1,11 @@
 // Package hooks installs checkpoint into Claude Code's PreToolUse hook so a
-// snapshot is taken automatically before any file-editing tool call.
+// snapshot is taken automatically before any Bash tool call.
+//
+// Scoped to Bash only, deliberately: Claude Code's native /rewind already
+// checkpoints and restores Edit/Write/MultiEdit/NotebookEdit changes, so
+// hooking those tools too would just duplicate a built-in feature. What
+// /rewind can't see is state changed by an arbitrary shell command, which is
+// the actual gap checkpoint fills.
 //
 // NOTE: Claude Code's hooks schema has changed before and may change again.
 // This writes the structure documented at the time this was built. If it
@@ -14,7 +20,7 @@ import (
 	"path/filepath"
 )
 
-const matcher = "Edit|Write|MultiEdit|NotebookEdit"
+const matcher = "Bash"
 const command = "checkpoint save --quiet --label auto --source hook"
 
 type hookEntry struct {

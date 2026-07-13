@@ -1,15 +1,29 @@
 # checkpoint
 
-Automatic, zero-config git checkpoints before your AI agent touches anything.
+Automatic, zero-config git checkpoints before your AI agent runs a bash command.
 
 ```
 $ checkpoint init
 checkpoint: installed a PreToolUse hook in .claude/settings.json
 ```
 
-That's it. From now on, every time Claude Code is about to edit, write, or run a
-notebook cell, checkpoint silently snapshots your working tree first. If the
-agent breaks something, you're one command away from the version before it happened.
+That's it. From now on, every time Claude Code is about to run a bash command,
+checkpoint silently snapshots your working tree first. If the command deletes,
+overwrites, or otherwise mangles something, you're one command away from the
+version before it happened.
+
+## Claude Code already has `/rewind` — read this first
+
+Claude Code ships a native `/rewind` that checkpoints and restores file edits
+made through its own `Edit`/`Write` tools. If that's all you need, use it —
+it's built in, requires no install, and this tool won't add anything.
+
+What `/rewind` does **not** cover is state changed by an arbitrary `bash`
+command the agent runs — `rm`, a script, a package manager, `git` itself,
+anything outside Claude Code's own file-editing tools. That gap is the entire
+reason checkpoint exists. If your agent only ever edits files directly and
+never shells out, you don't need checkpoint. If it runs bash commands against
+your working tree, `/rewind` can't help you and checkpoint can.
 
 ```
 $ checkpoint list
@@ -23,11 +37,15 @@ $ checkpoint restore 2   # go back to it
 
 ## Why
 
-AI coding agents occasionally delete, revert, or silently corrupt files they were
-asked to edit. The standard advice that's emerged for this is "commit before every
-agent session" — which works, but only if you remember to do it, every single time,
-under pressure, forever. checkpoint automates the thing you already know you should
-be doing.
+AI coding agents occasionally run a bash command that deletes, reverts, or
+silently corrupts files — `rm` on the wrong path, a migration script, a
+package manager doing more than expected, `git` itself. Edits made through
+Claude Code's own file tools are already covered by `/rewind`; commands run
+through the shell are not. The standard advice for that gap is "commit
+before every agent session" — which works, but only if you remember to do
+it, every single time, under pressure, forever. checkpoint automates the
+thing you already know you should be doing, scoped specifically to the tool
+call `/rewind` doesn't reach.
 
 ## Install
 
@@ -56,7 +74,7 @@ This means:
 
 | Command | What it does |
 |---|---|
-| `checkpoint init [--user]` | Installs the Claude Code `PreToolUse` hook (project-level by default; `--user` installs to `~/.claude/settings.json` instead) |
+| `checkpoint init [--user]` | Installs the Claude Code `PreToolUse` hook, scoped to `Bash` calls only (project-level by default; `--user` installs to `~/.claude/settings.json` instead) |
 | `checkpoint save [--label X]` | Takes a manual snapshot right now |
 | `checkpoint list [-n N]` | Shows recent checkpoints and what's changed since each one |
 | `checkpoint diff [N]` | Diffs checkpoint `#N` against the current working tree (default: 1, the most recent) |
@@ -104,6 +122,13 @@ necessary, fixed for — the states real projects actually end up in:
 
 ## Known limitations
 
+- **Upgrading from a version that hooked `Edit`/`Write`/etc: re-run `checkpoint init`.**
+  Versions before this scope change installed a hook matching
+  `Edit|Write|MultiEdit|NotebookEdit`. That entry isn't removed automatically —
+  `checkpoint init` only adds the new `Bash`-scoped entry alongside it. Delete
+  the old matcher group from `.claude/settings.json` by hand if you want the
+  redundant-with-`/rewind` coverage gone; leaving it doesn't break anything,
+  it's just an extra checkpoint on tool calls `/rewind` already handles.
 - **Untracked files aren't captured.** `git stash create` only snapshots tracked
   files. If your agent creates a brand-new file, it won't be in the checkpoint
   unless you've `git add`ed it first. Handling untracked files safely (without
