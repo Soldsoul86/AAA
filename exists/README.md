@@ -1,9 +1,9 @@
 # exists
 
-Checks whether a package your AI agent just installed actually exists in
-the real registry — before the build breaks, or worse, before something
-with that exact hallucinated name (registered on purpose, after the fact)
-gets pulled in and trusted.
+Checks whether a package your AI agent just installed is a name that
+actually exists in the real registry, right now — catching a hallucinated
+package name before you find out from a build failure, or worse, before
+someone squats that exact name later and it silently starts resolving.
 
 ```
 $ exists watch -claude-code
@@ -20,8 +20,18 @@ to something real that nobody double-checks. It used to just mean a build
 failure and a wasted few minutes. It doesn't stop there anymore: attackers
 watch for exactly this pattern and register the invented name with real,
 malicious code (slopsquatting), betting that someone's agent — or someone
-copying the agent's output — will install it without checking. `exists`
-checks the moment a package is installed, not after.
+copying the agent's output — will install it without checking.
+
+Be precise about what that means `exists` can and can't catch: it checks
+whether a name exists *right now*, at the moment the agent installs it. If
+the hallucinated name is genuinely unclaimed, `exists` catches it — that's
+the common case, and the main value here. If an attacker has *already*
+registered that exact name with malicious code before your agent tries it,
+the package now legitimately exists, and `exists` will correctly say so —
+it cannot tell a real package from a successfully squatted one, because
+from the registry's point of view there's no difference. This tool closes
+the "hallucinated name that isn't claimed by anyone" gap. It is not a
+malware scanner, and shouldn't be described or relied on as one.
 
 ## How it works
 
@@ -91,6 +101,21 @@ report" with zero feedback; this warning is the fix.
   test suite**, not mocked — deliberately, since the entire point is
   whether the real registry agrees. If you're offline, `go test ./...`
   will fail on `internal/registry` and `internal/watch`.
+- **Always checks the public registry, never a private one.** If your
+  project installs from a private npm scope or an internal PyPI mirror
+  (common at companies with their own package feeds), `exists` will report
+  a real, legitimate private package as "doesn't exist," because it only
+  ever asks `registry.npmjs.org`/`pypi.org` — it has no way to know about,
+  or check, whatever registry your `.npmrc`/`pip.conf` actually points at.
+  If you rely on a private registry, expect false "missing" reports for
+  every package that lives only there. Not yet built: reading the actual
+  configured registry instead of assuming the public one.
+- **Can only see a package that doesn't exist yet — not a malicious one
+  that does.** See Why above: a successfully slopsquatted package (already
+  registered under the hallucinated name) will correctly report as
+  existing. `exists` narrows the window where a hallucinated name is
+  silently trusted; it does not replace scanning what a package actually
+  contains.
 
 ## Verified against real data
 
@@ -104,6 +129,14 @@ CLI — `npm install`, `yarn add`, `pnpm add`, `pip install`, `poetry add`
 with a mix of real and hallucinated package names in the same transcript —
 plus true live-append watching and a typo'd `-file` path. That pass is
 what found and fixed the silent-hang-on-missing-file bug described above.
+
+A follow-up pre-release audit tested a transcript line larger than the
+scanner's buffer cap — the same class of bug found and fixed in
+[actually](https://github.com/Soldsoul86/AAA/tree/main/actually), which
+shares this watch-loop shape. Fixed the same way: an unbounded line
+reader that tracks bytes consumed instead of a fixed-size buffer, so one
+oversized line can no longer silently take down detection for the rest of
+the session.
 
 ## Install
 

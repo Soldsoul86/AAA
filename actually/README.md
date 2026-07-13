@@ -123,6 +123,16 @@ report" with zero feedback; this warning is the fix.
   actually says so explicitly rather than staying quiet — you get a
   distinct "can't verify this" note instead of either a false all-clear or
   a false alarm.
+- **Tracks a single "last test run" — not one per test suite.** In a
+  polyglot or monorepo project (a Python backend and a JS frontend in the
+  same session, say), if `pytest` fails and then `npm test` passes,
+  actually only remembers the *most recent* run. A claim like "backend
+  tests pass" made right after that `npm test` would be checked against
+  the JS run, not the failing Python one, and would wrongly stay silent.
+  This is a real limitation for multi-suite sessions, not a contrived
+  edge case — scoping test runs to which suite a claim is actually about
+  would need the same kind of diff-awareness the staleness limitation
+  below is also missing, and is a real next step, not built.
 - **Staleness is session-global, not claim-scoped.** *Any* file edit after
   the last test run marks the next claim "stale," even if that edit was
   unrelated setup work for a completely different part of the codebase.
@@ -176,6 +186,16 @@ a growing file while the binary tails it, not just a static fixture),
 `-claude-code` against a machine with no Claude Code history, and a typo'd
 `-file` path. That pass is what found and fixed the silent-hang-on-missing-
 file bug and the "checks" gap described above.
+
+A follow-up pre-release audit tested a transcript line larger than the
+scanner's buffer cap (an agent dumping a large file's contents into a tool
+result, say) — a real, plausible scenario, not a contrived one. It found
+that the old implementation failed silently on that single line and then
+silently dropped every line after it for the rest of the session, with
+zero error output. Fixed by switching to an unbounded line reader that
+tracks exactly how many bytes it's consumed, instead of a fixed-size
+buffer — confirmed fixed by rerunning the same oversized-line transcript
+and seeing the correct "can't verify this" response instead of silence.
 
 ## Install
 

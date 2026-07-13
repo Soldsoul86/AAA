@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/Soldsoul86/AAA/actually/internal/transcript"
@@ -181,16 +182,31 @@ func watch(path string, interval time.Duration) {
 			if _, err := f.Seek(offset, io.SeekStart); err != nil {
 				return
 			}
-			scanner := bufio.NewScanner(f)
-			scanner.Buffer(make([]byte, 0, 64*1024), 10*1024*1024)
-			for scanner.Scan() {
-				for _, ev := range transcript.ParseLine(scanner.Bytes()) {
-					if m := state.Feed(ev); m != nil {
-						fmt.Fprintf(os.Stderr, "actually: %s\n", m.Message)
+			// bufio.Scanner has a hard per-line buffer cap; a transcript
+			// line built from a large tool result (an agent dumping a big
+			// file's contents into output, say) can exceed it. Confirmed
+			// directly: hitting that cap made the scanner fail silently
+			// and skip every remaining line in the file, permanently,
+			// with zero error output. bufio.Reader.ReadString grows to
+			// fit an arbitrarily long line instead, and lets offset track
+			// exactly how many bytes were actually consumed, so a partial
+			// line still being written is correctly left for the next
+			// poll rather than processed early or dropped.
+			reader := bufio.NewReader(f)
+			for {
+				line, err := reader.ReadString('\n')
+				if strings.HasSuffix(line, "\n") {
+					for _, ev := range transcript.ParseLine([]byte(strings.TrimRight(line, "\n"))) {
+						if m := state.Feed(ev); m != nil {
+							fmt.Fprintf(os.Stderr, "actually: %s\n", m.Message)
+						}
 					}
+					offset += int64(len(line))
+				}
+				if err != nil {
+					break
 				}
 			}
-			offset = info.Size()
 		}()
 		time.Sleep(interval)
 	}
