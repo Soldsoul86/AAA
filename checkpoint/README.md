@@ -78,12 +78,38 @@ This only checkpoints at session start/end rather than before every individual
 edit, which is a real gap. Per-tool-call hooks for other agents are the natural
 next step once they expose the same kind of hook system Claude Code does.
 
+## Hardened against
+
+Beyond the basic case, checkpoint has been deliberately tested against — and where
+necessary, fixed for — the states real projects actually end up in:
+
+- **Repos with no commits yet.** `git stash create` can't work before a first commit
+  exists (there's no HEAD for it to use as a parent) — a real, common state when an
+  AI agent scaffolds a brand-new project. checkpoint falls back to `write-tree` +
+  `commit-tree` automatically in this case, still just a plain git object, no
+  custom format. Staged content is protected; unstaged content before the first
+  commit is not (see limitations below).
+- **Detached HEAD.** Works with no special handling needed.
+- **Concurrent saves.** An agent firing several tool calls in quick succession can
+  trigger several hook-driven saves nearly simultaneously. This used to fail
+  intermittently on git's own internal lock contention; checkpoint now retries
+  transient failures briefly and silently rather than surfacing raw git errors
+  during otherwise normal use. Verified under 30 truly concurrent saves with zero
+  failures.
+- **Symlinks and binary files.** Handled correctly — git treats both as first-class
+  objects, and checkpoint doesn't do anything clever enough to get in the way.
+- **A corrupted or truncated log line** (e.g. the process was killed mid-write).
+  `checkpoint list`/`restore` skip malformed lines rather than fail entirely;
+  every checkpoint before and after a corrupted line stays fully usable.
+
 ## Known limitations
 
 - **Untracked files aren't captured.** `git stash create` only snapshots tracked
   files. If your agent creates a brand-new file, it won't be in the checkpoint
   unless you've `git add`ed it first. Handling untracked files safely (without
   risking `git clean`-style data loss) is a planned improvement, not yet built.
+  Before your first commit specifically, this also means unstaged changes aren't
+  protected at all — `git add` them first, or just commit early.
 - **`restore` never deletes files.** It overwrites tracked files that exist in the
   target checkpoint, but if a file was created *after* that checkpoint, restoring
   won't remove it. This is deliberate — checkpoint would rather leave an extra
@@ -93,6 +119,12 @@ next step once they expose the same kind of hook system Claude Code does.
 - **The Claude Code hooks schema may drift.** `checkpoint init` writes the hook
   format documented at the time this was built. If Claude Code changes it,
   `init` may need an update — please open an issue rather than assume it's silently broken.
+- **Run `checkpoint init` *before* starting your Claude Code session, not during one.**
+  Tested directly: installing the hook mid-session and then editing a file did
+  *not* trigger an automatic checkpoint — Claude Code most likely reads
+  `.claude/settings.json` once at startup, not dynamically. If checkpoints
+  aren't appearing automatically, restart your session after running `init`
+  before assuming anything is broken.
 
 ## License
 
