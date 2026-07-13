@@ -16,6 +16,45 @@ command and does exactly one thing.
 | [actually](./actually) | Trust | Cross-checks a "tests pass" claim against the real last test run in the same session |
 | [exists](./exists) | Trust | Checks whether a package your agent just installed (npm/PyPI) actually exists in the real registry |
 
+## Verified, not vibes
+
+Every tool here has a "Known limitations" and "Verified against real data"
+section in its own README — the point of this section is to put the
+concrete evidence in one place instead of six, so it's not just a claim.
+
+- **checkpoint**: hardened against 8 real scenarios beyond the happy path
+  (no commits yet, detached HEAD, 30 truly concurrent saves, corrupted log
+  lines, symlinks/binaries) — 2 real bugs found and fixed along the way.
+  Verified via a real `brew`-installed binary: `brew upgrade`, three full
+  uninstall/reinstall cycles, zero leftover state.
+- **loopkill**: verified against a real simulated stuck process — zero
+  false positives on a spinner, correct detection and kill on a genuine
+  loop, not a synthetic pass/fail assertion.
+- **ctxmeter**: verified that piping through it never swallows the wrapped
+  CLI's real output — the gauge renders on stderr, stdout reaches the
+  terminal byte-for-byte unmodified.
+- **again**: the real Claude Code transcript shape was confirmed correct
+  against a live session, not assumed — and its token counts are the
+  actual measured length of a repeated prompt, deliberately never called
+  "tokens saved," because that would require guessing a counterfactual no
+  tool can actually know.
+- **permit**: cut from three commands down to one (`doctor`) after
+  discovering Claude Code already had native features doing the same job.
+  Shipping less, on purpose, once redundant work was found, rather than
+  keeping code around because it existed.
+- **actually**: swept against ~500 real assistant messages from this
+  project's own development session — 0 false positives after fixing 3
+  real bugs found along the way, including a silent-data-loss bug where
+  one oversized transcript line could drop detection for the rest of a
+  session with zero error output.
+- **exists**: its test suite makes live calls to the real npm and PyPI
+  registries rather than mocking them, because the entire point is whether
+  the real registry agrees. A pre-release audit found its own pitch had
+  quietly oversold what it protects against (it can't catch a package name
+  that's *already* been squatted, only one that's still unclaimed) — the
+  README was rewritten to say so plainly rather than leave the stronger,
+  less accurate claim standing.
+
 ## Why separate tools instead of one platform
 
 Each one is a narrow fix for a single, specific, well-evidenced annoyance —
