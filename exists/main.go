@@ -126,8 +126,16 @@ func locateMostRecentSession() (string, error) {
 	return found[0].path, nil
 }
 
+// missingFileWarnAfter is how many consecutive failed opens to tolerate
+// silently before saying something — see the identical comment in
+// actually's main.go, where this exact silent-hang behavior was confirmed
+// directly against a typo'd path before this fix.
+const missingFileWarnAfter = 5
+
 func watchFile(path string, interval time.Duration) {
 	var offset int64
+	consecutiveMisses := 0
+	warned := false
 
 	fmt.Fprintln(os.Stderr, "exists: waiting for activity...")
 
@@ -135,8 +143,15 @@ func watchFile(path string, interval time.Duration) {
 		func() {
 			f, err := os.Open(path)
 			if err != nil {
+				consecutiveMisses++
+				if consecutiveMisses == missingFileWarnAfter && !warned {
+					fmt.Fprintf(os.Stderr, "exists: still can't open %s (%v) — if you expected it to exist, check the path\n", path, err)
+					warned = true
+				}
 				return
 			}
+			consecutiveMisses = 0
+			warned = false
 			defer f.Close()
 
 			info, err := f.Stat()

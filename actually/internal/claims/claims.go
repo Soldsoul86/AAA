@@ -17,14 +17,23 @@ import (
 )
 
 // The bare, unsuffixed form of "pass" only counts as the verb ("tests
-// pass" = tests succeed) when "test" is plural. Singular "test pass" (no
-// suffix) is almost always the noun phrase "a test pass" — a round of
-// testing — as in "ran a second independent test pass"; real transcript
-// text confirmed this exact false positive. Suffixed forms (passes/
-// passed/passing) are unambiguous verb forms regardless of singular or
-// plural "test", so those aren't restricted.
+// pass" = tests succeed) when "test"/"check" is plural. Singular "test
+// pass" (no suffix) is almost always the noun phrase "a test pass" — a
+// round of testing — as in "ran a second independent test pass"; real
+// transcript text confirmed this exact false positive. Suffixed forms
+// (passes/passed/passing) are unambiguous verb forms regardless of
+// singular or plural, so those aren't restricted.
+//
+// "checks" is included alongside "tests" as an equally common, equally
+// unambiguous way to report the same thing ("all checks pass") — found
+// missing during third-party verification, where a synthetic "Jest suite
+// passes" claim (no literal word "test" at all) was silently not
+// recognized. "checks" carries the same low false-positive risk as
+// "tests" in this exact grammatical position, so it gets the same
+// treatment rather than a broader, riskier expansion (see README for what
+// still isn't covered, like "the suite is green").
 var claimPattern = regexp.MustCompile(
-	`(?i)\b(?:all\s+)?(?:tests\s+pass\b|tests?\s+(?:is\s+|are\s+)?(?:now\s+|already\s+|successfully\s+|finally\s+|still\s+)?pass(?:es|ed|ing)\b)`,
+	`(?i)\b(?:all\s+)?(?:(?:tests|checks)\s+pass\b|(?:tests?|checks?)\s+(?:is\s+|are\s+)?(?:now\s+|already\s+|successfully\s+|finally\s+|still\s+)?pass(?:es|ed|ing)\b)`,
 )
 
 // intentMarkers precede a claim-shaped phrase when it's actually a plan,

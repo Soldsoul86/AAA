@@ -55,6 +55,31 @@ func TestTestsPassClaimed_MixedTextFindsRealClaimPastIntentDiscussion(t *testing
 	}
 }
 
+func TestTestsPassClaimed_ChecksSynonym(t *testing.T) {
+	cases := []string{
+		"All checks pass.",
+		"Checks passed, merging now.",
+		"All checks are passing now.",
+	}
+	for _, c := range cases {
+		if !TestsPassClaimed(c) {
+			t.Errorf("TestsPassClaimed(%q) = false, want true (checks is an equally unambiguous synonym for tests)", c)
+		}
+	}
+}
+
+func TestTestsPassClaimed_ChecksDiscussionNotAClaim(t *testing.T) {
+	cases := []string{
+		"make sure all checks pass before merging",
+		"let's wait until checks pass",
+	}
+	for _, c := range cases {
+		if TestsPassClaimed(c) {
+			t.Errorf("TestsPassClaimed(%q) = true, want false (intent, not a claim)", c)
+		}
+	}
+}
+
 func TestTestsPassClaimed_NounPhraseNotAClaim(t *testing.T) {
 	cases := []string{
 		"some run a second independent test pass",

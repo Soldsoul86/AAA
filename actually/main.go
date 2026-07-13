@@ -134,9 +134,21 @@ func locateMostRecentSession() (string, error) {
 	return found[0].path, nil
 }
 
+// missingFileWarnAfter is how many consecutive failed opens to tolerate
+// silently before saying something. A file that doesn't exist yet is a
+// normal, transient state (e.g. -claude-code racing a session that hasn't
+// written its first line), but a file that never appears is very likely a
+// typo'd path — and going forever with zero output looks identical to
+// "working correctly, nothing to report" from a first-time user's seat.
+// Confirmed directly: watching a nonexistent path printed only the initial
+// "waiting for activity..." message forever, with no further signal.
+const missingFileWarnAfter = 5
+
 func watch(path string, interval time.Duration) {
 	var offset int64
 	state := verify.NewState()
+	consecutiveMisses := 0
+	warned := false
 
 	fmt.Fprintln(os.Stderr, "actually: waiting for activity...")
 
@@ -144,8 +156,15 @@ func watch(path string, interval time.Duration) {
 		func() {
 			f, err := os.Open(path)
 			if err != nil {
+				consecutiveMisses++
+				if consecutiveMisses == missingFileWarnAfter && !warned {
+					fmt.Fprintf(os.Stderr, "actually: still can't open %s (%v) — if you expected it to exist, check the path\n", path, err)
+					warned = true
+				}
 				return
 			}
+			consecutiveMisses = 0
+			warned = false
 			defer f.Close()
 
 			info, err := f.Stat()

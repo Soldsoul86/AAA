@@ -76,6 +76,11 @@ distinguishes "tests pass" the verb from "test pass" the noun) rather than
 guessing at meaning. Tuned and tested against this project's actual
 transcript, not just made-up examples — see Verified against real data.
 
+Recognizes "checks" as a synonym for "tests" ("all checks pass" counts the
+same as "all tests pass") — added after third-party testing found a claim
+phrased without the literal word "test" going uncaught. Same exclusion
+handling applies to both.
+
 ## Usage
 
 ```
@@ -94,6 +99,13 @@ actually watch -claude-code [-interval MS]
   process's cwd didn't match the directory Claude Code actually keyed the
   session under. Scanning for "whichever session is actively being written
   to" sidesteps the encoding question entirely.
+
+If the path given to `-file` doesn't exist yet, actually keeps polling
+rather than exiting — useful if you start watching before the file is
+created — but says so explicitly after 5 consecutive misses rather than
+running forever with no output. A third-party test of a typo'd path
+confirmed the old behavior looked identical to "working, nothing to
+report" with zero feedback; this warning is the fix.
 
 ## Known limitations
 
@@ -125,6 +137,23 @@ actually watch -claude-code [-interval MS]
   It's tuned against real false-positive patterns found in this project's
   own transcripts, but a sufficiently unusual phrasing could still slip
   past the exclusion list either direction.
+- **Only "tests"/"checks" are recognized — not every synonym for "it
+  worked."** "CI is green," "the suite is green," "everything passes"
+  aren't caught. These were deliberately left out rather than added
+  loosely: "green," in particular, shows up in far too many unrelated
+  contexts to add safely without reopening the false-positive problem the
+  exclusion list exists to solve. "checks" was added because it's as
+  grammatically unambiguous as "tests" in this exact position; "green" and
+  similar aren't.
+- **Quote detection only catches a phrase immediately inside quote marks,
+  not a quoted phrase in the middle of a longer sentence.** Found during
+  testing: a sentence *about* a past claim — `a "stale" claim (permit's
+  "All 9 tests pass" completion report...)` — still matched, because the
+  quote mark isn't adjacent to "tests," it's several words earlier. In
+  practice this shows up in meta-discussion (a report describing what
+  actually itself found), not in ordinary coding-session transcripts,
+  which is why it wasn't worth the added complexity of real quote-span
+  tracking to close.
 
 ## Verified against real data
 
@@ -132,11 +161,21 @@ Every design decision above was checked against a real, live Claude Code
 transcript from this project's own session — not synthetic fixtures. That
 included: confirming the actual JSON shape of assistant/tool_use/tool_result
 entries, discovering the `is_error` limitation firsthand, running the
-finished claim detector against all ~400 real assistant text blocks in that
-session (4 genuine claims correctly caught, 0 false positives after fixing
-the noun-phrase bug), and running the finished binary against the entire
-transcript end to end, which is what surfaced the staleness-scoping
-limitation documented above.
+finished claim detector against all ~500 real assistant text blocks in that
+session (0 false positives on ordinary claims), and running the finished
+binary against the entire transcript end to end, which is what surfaced
+both the staleness-scoping limitation and the quote-detection limitation
+documented above.
+
+A separate black-box pass, run after shipping v0.1.0, installed the tool
+fresh via `go install` (not the dev build) and drove it like a first-time
+user would: multi-framework end-to-end runs through the real CLI (Go,
+pytest, Jest, cargo, each via an actual claim/result pair, not just unit
+tests of the underlying packages), true live-append watching (appending to
+a growing file while the binary tails it, not just a static fixture),
+`-claude-code` against a machine with no Claude Code history, and a typo'd
+`-file` path. That pass is what found and fixed the silent-hang-on-missing-
+file bug and the "checks" gap described above.
 
 ## Install
 

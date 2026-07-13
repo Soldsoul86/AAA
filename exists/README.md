@@ -51,6 +51,13 @@ exists watch -claude-code [-interval MS]
   after confirming that guessing a single folder from the current working
   directory is unreliable.
 
+If the path given to `-file` doesn't exist yet, exists keeps polling
+rather than exiting — useful if you start watching before the file is
+created — but says so explicitly after 5 consecutive misses rather than
+running forever with no output. A third-party test of a typo'd path
+confirmed the old behavior looked identical to "working, nothing to
+report" with zero feedback; this warning is the fix.
+
 ## Known limitations
 
 - **v1 covers npm and PyPI only.** These are where the best-evidenced
@@ -84,6 +91,19 @@ exists watch -claude-code [-interval MS]
   test suite**, not mocked — deliberately, since the entire point is
   whether the real registry agrees. If you're offline, `go test ./...`
   will fail on `internal/registry` and `internal/watch`.
+
+## Verified against real data
+
+Confirmed npm and PyPI's actual existence-check response shapes via curl
+before writing any code, then wrote unit tests that make live calls to
+both real registries rather than mocking them. After shipping v0.1.0, a
+separate black-box pass installed the tool fresh via `go install` and
+drove it through every documented command style end to end via the real
+CLI — `npm install`, `yarn add`, `pnpm add`, `pip install`, `poetry add`
+(including the `--group dev` flag-value edge case), and `uv add`, each
+with a mix of real and hallucinated package names in the same transcript —
+plus true live-append watching and a typo'd `-file` path. That pass is
+what found and fixed the silent-hang-on-missing-file bug described above.
 
 ## Install
 
