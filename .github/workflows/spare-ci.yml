@@ -98,15 +98,22 @@ jobs:
       - name: Real end-to-end smoke test — PowerShell profile function override
         shell: pwsh
         run: |
-          $env:HOME = "$env:RUNNER_TEMP\spare-home"
-          New-Item -ItemType Directory -Force -Path $env:HOME | Out-Null
+          # Real bug found on the first CI run: os.UserHomeDir() reads
+          # $USERPROFILE on Windows, not $HOME. Setting only $env:HOME left
+          # spare-bin.exe operating against the runner's actual real home
+          # directory instead of this isolated one — confirmed directly by
+          # the init output pointing at C:\Users\runneradmin\Documents\...
+          # instead of the intended temp path.
+          $env:USERPROFILE = "$env:RUNNER_TEMP\spare-home"
+          $env:HOME = $env:USERPROFILE
+          New-Item -ItemType Directory -Force -Path $env:USERPROFILE | Out-Null
           .\spare-bin.exe init
 
           # Simulate a fresh PowerShell session loading the profile the same
           # way a real new terminal / new agent session would after init.
           $profiles = @(
-            "$env:HOME\Documents\PowerShell\Microsoft.PowerShell_profile.ps1",
-            "$env:HOME\Documents\WindowsPowerShell\Microsoft.PowerShell_profile.ps1"
+            "$env:USERPROFILE\Documents\PowerShell\Microsoft.PowerShell_profile.ps1",
+            "$env:USERPROFILE\Documents\WindowsPowerShell\Microsoft.PowerShell_profile.ps1"
           )
           foreach ($p in $profiles) { if (Test-Path $p) { . $p } }
 
@@ -119,8 +126,14 @@ jobs:
             exit 1
           }
 
-          $entry = (.\spare-bin.exe list | Select-Object -Last 1) -split '\s+'
-          $id = $entry[0]
+          # Filter out the header line explicitly rather than assuming
+          # position ("-Last 1") always lands on a data row.
+          $dataLine = .\spare-bin.exe list | Where-Object { $_ -notmatch '^ID\s' -and $_.Trim() -ne '' } | Select-Object -Last 1
+          $id = ($dataLine -split '\s+')[0]
+          if ([string]::IsNullOrEmpty($id)) {
+            Write-Error "FAIL: could not parse an id out of 'spare list' output: '$dataLine'"
+            exit 1
+          }
           .\spare-bin.exe restore $id
           if (-not (Test-Path "$env:RUNNER_TEMP\project\important.txt")) {
             Write-Error "FAIL: restore did not bring the file back"

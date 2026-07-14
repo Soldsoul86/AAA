@@ -8,12 +8,17 @@ import (
 	"time"
 )
 
-// withTempHome points UserHomeDir (via $HOME) at a fresh temp dir so tests
-// never touch the real ~/.spare.
+// withTempHome points os.UserHomeDir at a fresh temp dir so tests never
+// touch the real ~/.spare. Real bug, found via CI on windows-latest:
+// os.UserHomeDir() reads $USERPROFILE on Windows, not $HOME — setting HOME
+// alone left every Windows test operating against the actual runner's real
+// home directory, silently, which is exactly what let entries from
+// unrelated tests bleed into each other.
 func withTempHome(t *testing.T) string {
 	t.Helper()
 	dir := t.TempDir()
 	t.Setenv("HOME", dir)
+	t.Setenv("USERPROFILE", dir)
 	return dir
 }
 

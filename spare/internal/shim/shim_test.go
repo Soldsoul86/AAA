@@ -8,10 +8,14 @@ import (
 	"testing"
 )
 
+// os.UserHomeDir() reads $USERPROFILE on Windows, not $HOME — see the
+// identical comment in internal/trash's own withTempHome, where this was
+// first found via a real CI failure on windows-latest.
 func withTempHome(t *testing.T) string {
 	t.Helper()
 	dir := t.TempDir()
 	t.Setenv("HOME", dir)
+	t.Setenv("USERPROFILE", dir)
 	return dir
 }
 
