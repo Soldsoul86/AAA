@@ -31,15 +31,34 @@ var testCommandSubstrings = []string{
 	"rspec",
 	"jest",
 	"dotnet test",
-	"make test",
 }
+
+// makeTargetPattern matches a "make" invocation whose target is "check"
+// (the standard GNU/autotools convention for "run the tests", distinct
+// from "test") or "test", with any flags in between — real make
+// invocations almost always put flags before the target (e.g.
+// "make -j4 check"), which a plain substring match on "make check" would
+// miss entirely. \b before "make" (not ^) so this also matches after a
+// prefix like "cd project && make -j4 check", not just at the start of
+// the whole command.
+var makeTargetPattern = regexp.MustCompile(`\bmake\s+(?:-\S+\s+)*(check|test)\b`)
 
 // IsTestCommand reports whether a shell command looks like a test-runner
 // invocation, based on a fixed list of common tools. Custom test scripts
 // under non-standard names (e.g. "./scripts/check.sh") are not recognized —
 // a known, documented limitation rather than a loose guess that would risk
-// false positives on unrelated commands.
+// false positives on unrelated commands. Deliberately does NOT recognize
+// bare "make" (with or without flags, with a non-test target, or with no
+// target at all) — most make invocations build, install, or clean, not
+// test, and forcing that match would cause false mismatch alerts on
+// ordinary builds. Confirmed real: the strongest matching GitHub issue
+// found for this tool used exactly "make -j4" as its project's canonical
+// build-and-test command, and that command is intentionally still not
+// recognized here.
 func IsTestCommand(command string) bool {
+	if makeTargetPattern.MatchString(command) {
+		return true
+	}
 	for _, s := range testCommandSubstrings {
 		if containsSubstring(command, s) {
 			return true

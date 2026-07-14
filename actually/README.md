@@ -120,10 +120,19 @@ report" with zero feedback; this warning is the fix.
   step, not built. Narrower and reliable beats broader and guessy.
 - **A fixed list of test runners.** `go test`, `npm`/`yarn`/`pnpm test`,
   `pytest`, `cargo test`, `mvn test`/`verify`, `gradle`/`./gradlew test`,
-  `rspec`, `jest`, `dotnet test`, `make test`. A custom script
-  (`./scripts/check.sh`) won't be recognized as a test command at all —
-  deliberately a precise list rather than a loose "contains the word test"
-  match, which would misfire on things like `mkdir test`.
+  `rspec`, `jest`, `dotnet test`, `make test`/`make check` (with any flags
+  in between `make` and the target, e.g. `make -j4 check`). A custom
+  script (`./scripts/check.sh`) won't be recognized as a test command at
+  all — deliberately a precise list rather than a loose "contains the word
+  test" match, which would misfire on things like `mkdir test`.
+- **Bare `make` — with or without flags, with a non-test target, or with
+  no target at all — is deliberately not recognized**, even though a real
+  GitHub issue (the strongest match found for this tool) used exactly
+  `make -j4` as its project's canonical build-and-test command. Most
+  `make` invocations build, install, or clean, not test — recognizing bare
+  `make` as a test run would cause false mismatch alerts on ordinary
+  builds, a worse failure mode than under-catching one project's
+  particular Makefile convention.
 - **Unrecognized output is `unknown`, not silently assumed passing.** If a
   test command runs but its output doesn't match any known pattern,
   actually says so explicitly rather than staying quiet — you get a

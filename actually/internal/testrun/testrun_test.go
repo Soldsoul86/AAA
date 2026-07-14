@@ -16,6 +16,20 @@ func TestIsTestCommand(t *testing.T) {
 		"cd test-dir && ls":                      false,
 		"git commit -m 'fix test helper'":        false,
 		"echo hello":                             false,
+		"make check":                             true,
+		"make -j4 check":                         true,
+		// Deliberately NOT recognized: bare "make" (with or without flags,
+		// with or without a non-test target) is genuinely ambiguous — most
+		// invocations build, install, or clean, not test. Forcing this to
+		// match would cause false mismatch alerts on ordinary builds, a
+		// worse failure mode than under-catching a project whose Makefile
+		// happens to run tests as part of a bare "make". Confirmed real:
+		// the strongest matching GitHub issue found for this tool used
+		// exactly "make -j4" as its canonical build-and-test command, and
+		// that command is intentionally still not recognized here.
+		"make -j4":     false,
+		"make install": false,
+		"make clean":   false,
 	}
 	for cmd, want := range cases {
 		if got := IsTestCommand(cmd); got != want {
