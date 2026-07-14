@@ -1,0 +1,143 @@
+name: spare-ci
+
+# Runs on every push/PR touching spare — separate from spare's release
+# workflow. The point of this one specifically is to actually RUN the
+# binary on real macOS, Linux, and Windows runners, not just cross-compile
+# for them. Every other tool in this repo has only ever had its
+# Windows/Linux binaries cross-compiled by goreleaser and never executed —
+# a real, previously-flagged gap. spare closes it: this workflow performs a
+# genuine end-to-end rm-diversion-and-restore smoke test on all three OSes.
+on:
+  push:
+    paths:
+      - "spare/**"
+      - ".github/workflows/spare-ci.yml"
+  pull_request:
+    paths:
+      - "spare/**"
+
+jobs:
+  test:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: spare
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
+      - run: go vet ./...
+      - run: go test ./... -v
+
+  smoke-test-unix:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: spare
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
+      - name: Build
+        run: go build -o spare-bin .
+      - name: Real end-to-end smoke test — rm diversion and restore
+        shell: bash
+        run: |
+          set -e
+          export HOME="$RUNNER_TEMP/spare-home"
+          mkdir -p "$HOME"
+          ./spare-bin init
+
+          # Simulate a fresh shell picking up the shim, the same way a real
+          # new terminal / new agent session would after init.
+          export PATH="$HOME/.spare/shims:$PATH"
+          command -v rm | grep -q ".spare/shims/rm" || { echo "FAIL: rm did not resolve to the shim"; exit 1; }
+
+          mkdir -p "$RUNNER_TEMP/project"
+          echo "irreplaceable" > "$RUNNER_TEMP/project/important.txt"
+          rm "$RUNNER_TEMP/project/important.txt"
+          [ ! -f "$RUNNER_TEMP/project/important.txt" ] || { echo "FAIL: file still exists after rm"; exit 1; }
+
+          id=$(./spare-bin list | tail -1 | awk '{print $1}')
+          ./spare-bin restore "$id"
+          [ -f "$RUNNER_TEMP/project/important.txt" ] || { echo "FAIL: restore did not bring the file back"; exit 1; }
+          content=$(cat "$RUNNER_TEMP/project/important.txt")
+          [ "$content" = "irreplaceable" ] || { echo "FAIL: restored content doesn't match"; exit 1; }
+
+          # A directory, recursively.
+          mkdir -p "$RUNNER_TEMP/project/subdir"
+          echo "nested" > "$RUNNER_TEMP/project/subdir/nested.txt"
+          rm -rf "$RUNNER_TEMP/project/subdir"
+          [ ! -d "$RUNNER_TEMP/project/subdir" ] || { echo "FAIL: directory still exists after rm -rf"; exit 1; }
+          id2=$(./spare-bin list | tail -1 | awk '{print $1}')
+          ./spare-bin restore "$id2"
+          [ "$(cat "$RUNNER_TEMP/project/subdir/nested.txt")" = "nested" ] || { echo "FAIL: restored directory content doesn't match"; exit 1; }
+
+          echo "PASS: real rm diversion and restore verified on $(uname -s)"
+
+  smoke-test-windows:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: spare
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
+      - name: Build
+        run: go build -o spare-bin.exe .
+      - name: Real end-to-end smoke test — PowerShell profile function override
+        shell: pwsh
+        run: |
+          $env:HOME = "$env:RUNNER_TEMP\spare-home"
+          New-Item -ItemType Directory -Force -Path $env:HOME | Out-Null
+          .\spare-bin.exe init
+
+          # Simulate a fresh PowerShell session loading the profile the same
+          # way a real new terminal / new agent session would after init.
+          $profiles = @(
+            "$env:HOME\Documents\PowerShell\Microsoft.PowerShell_profile.ps1",
+            "$env:HOME\Documents\WindowsPowerShell\Microsoft.PowerShell_profile.ps1"
+          )
+          foreach ($p in $profiles) { if (Test-Path $p) { . $p } }
+
+          New-Item -ItemType Directory -Force -Path "$env:RUNNER_TEMP\project" | Out-Null
+          "irreplaceable" | Out-File -FilePath "$env:RUNNER_TEMP\project\important.txt" -Encoding utf8 -NoNewline
+
+          rm "$env:RUNNER_TEMP\project\important.txt"
+          if (Test-Path "$env:RUNNER_TEMP\project\important.txt") {
+            Write-Error "FAIL: file still exists after rm"
+            exit 1
+          }
+
+          $entry = (.\spare-bin.exe list | Select-Object -Last 1) -split '\s+'
+          $id = $entry[0]
+          .\spare-bin.exe restore $id
+          if (-not (Test-Path "$env:RUNNER_TEMP\project\important.txt")) {
+            Write-Error "FAIL: restore did not bring the file back"
+            exit 1
+          }
+          $content = Get-Content "$env:RUNNER_TEMP\project\important.txt" -Raw
+          if ($content -ne "irreplaceable") {
+            Write-Error "FAIL: restored content doesn't match, got '$content'"
+            exit 1
+          }
+          Write-Host "PASS: rm (function-shadowed alias) diversion and restore verified on Windows"
+
+          # Remove-Item itself must be intercepted too, not just the rm alias.
+          "irreplaceable2" | Out-File -FilePath "$env:RUNNER_TEMP\project\important2.txt" -Encoding utf8 -NoNewline
+          Remove-Item "$env:RUNNER_TEMP\project\important2.txt"
+          if (Test-Path "$env:RUNNER_TEMP\project\important2.txt") {
+            Write-Error "FAIL: Remove-Item cmdlet was not intercepted"
+            exit 1
+          }
+          Write-Host "PASS: Remove-Item cmdlet shadowing verified on Windows"
