@@ -12,11 +12,11 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"time"
 )
 
@@ -174,12 +174,19 @@ func copyDir(src, dest string) error {
 	})
 }
 
+// newID generates a short random hex ID, git-short-hash style — 6 bytes,
+// 12 hex characters. Deliberately not timestamp-prefixed: an earlier
+// version used <unix-nano>-<hex>, which put the useful entropy at the
+// *end* of the ID, making short-prefix matching (see ResolveID) useless —
+// every ID sorted by recency shares the same leading digits. Chronology is
+// already captured separately in DeletedAt; the ID only needs to be short,
+// stable, and easy to distinguish from other entries at a glance.
 func newID() (string, error) {
-	b := make([]byte, 8)
+	b := make([]byte, 6)
 	if _, err := rand.Read(b); err != nil {
 		return "", err
 	}
-	return fmt.Sprintf("%d-%s", time.Now().UnixNano(), hex.EncodeToString(b)), nil
+	return hex.EncodeToString(b), nil
 }
 
 func appendLog(path string, e Entry) error {
@@ -234,26 +241,50 @@ func List() ([]Entry, error) {
 
 var ErrNotFound = errors.New("no trash entry with that id")
 var ErrTargetExists = errors.New("restore target already exists")
+var ErrAmbiguousID = errors.New("that id prefix matches more than one trash entry — use more characters")
 
-// Restore moves a trashed entry back to its original path. Refuses to
-// overwrite an existing file unless force is set — silently overwriting
-// whatever now occupies the original path would be its own way of losing
-// data, exactly the failure mode this tool exists to prevent.
-func Restore(id string, force bool) (Entry, error) {
+// ResolveID finds the entry matching id exactly, or — if there's no exact
+// match — as a unique prefix, the same way git resolves a short commit
+// hash. An ambiguous prefix is rejected outright rather than guessed at;
+// silently picking one of several matching entries when the whole point is
+// not losing data would be exactly the wrong instinct here.
+func ResolveID(id string) (Entry, error) {
 	entries, err := List()
 	if err != nil {
 		return Entry{}, err
 	}
-	var target *Entry
-	for i := range entries {
-		if entries[i].ID == id {
-			target = &entries[i]
-			break
+	for _, e := range entries {
+		if e.ID == id {
+			return e, nil
 		}
 	}
-	if target == nil {
-		return Entry{}, ErrNotFound
+	var matches []Entry
+	for _, e := range entries {
+		if strings.HasPrefix(e.ID, id) {
+			matches = append(matches, e)
+		}
 	}
+	switch len(matches) {
+	case 0:
+		return Entry{}, ErrNotFound
+	case 1:
+		return matches[0], nil
+	default:
+		return Entry{}, ErrAmbiguousID
+	}
+}
+
+// Restore moves a trashed entry (matched by ResolveID: exact id or unique
+// prefix) back to its original path. Refuses to overwrite an existing file
+// unless force is set — silently overwriting whatever now occupies the
+// original path would be its own way of losing data, exactly the failure
+// mode this tool exists to prevent.
+func Restore(id string, force bool) (Entry, error) {
+	resolved, err := ResolveID(id)
+	if err != nil {
+		return Entry{}, err
+	}
+	target := &resolved
 
 	if _, err := os.Lstat(target.OriginalPath); err == nil && !force {
 		return Entry{}, ErrTargetExists
@@ -270,7 +301,10 @@ func Restore(id string, force bool) (Entry, error) {
 	if err != nil {
 		return *target, nil // restore itself succeeded; log cleanup is best-effort
 	}
-	_ = removeFromLog(logPath(root), id)
+	// Use target.ID, the full resolved ID — not the (possibly partial)
+	// input id, which wouldn't match anything in the log and would leave
+	// a stale entry behind forever if the caller restored by prefix.
+	_ = removeFromLog(logPath(root), target.ID)
 	return *target, nil
 }
 

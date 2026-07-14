@@ -5,9 +5,11 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime/debug"
 	"strconv"
 	"strings"
 	"time"
@@ -16,19 +18,41 @@ import (
 	"github.com/Soldsoul86/AAA/spare/internal/trash"
 )
 
+// version is set at build time via -ldflags "-X main.version=vX.Y.Z" by
+// goreleaser. Same pattern as permit's own version detection: "go install"
+// never runs that ldflags step, so effectiveVersion() falls back to Go's
+// own embedded module version for that path, keeping --version accurate
+// either way rather than always printing "dev".
+var version = "dev"
+
+func effectiveVersion() string {
+	if version != "dev" {
+		return version
+	}
+	if bi, ok := debug.ReadBuildInfo(); ok && bi.Main.Version != "" && bi.Main.Version != "(devel)" {
+		return bi.Main.Version
+	}
+	return version
+}
+
 const usage = `spare — makes rm (and Remove-Item/del on Windows) recoverable
 
 Usage:
-  spare init              install the shim (adds spare's rm to PATH / your
-                           PowerShell profile) — takes effect in new sessions
-  spare status             show whether the shim is installed
-  spare disable            remove everything spare init added
-  spare rm [-rf] paths...  the actual interception target — you normally
-                           never type this yourself, "rm" resolves to it
-  spare list               show what's currently in the trash
-  spare restore <id>       move a trashed item back to where it came from
-  spare purge [DAYS]       permanently delete trash older than DAYS
-                           (default: 30)
+  spare init                install the shim (adds spare's rm to PATH / your
+                             PowerShell profile) — takes effect in new sessions
+  spare status               show whether the shim is installed
+  spare disable              remove everything spare init added
+  spare rm [-rf] paths...    the actual interception target — you normally
+                             never type this yourself, "rm" resolves to it
+  spare list [--json]        show what's currently in the trash
+  spare restore [id]         restore an item — the most recently deleted one
+                             if no id is given, or a specific one by its id
+                             (a unique prefix of it also works, git-style)
+  spare purge [DAYS] --yes   permanently delete trash older than DAYS
+                             (default: 30) — shows what would be purged
+                             and requires --yes; nothing is ever silently
+                             destroyed for good
+  spare --version            print the version
 
 After "spare init", start a new terminal / new agent session — the shim
 takes effect for new sessions, not the one currently running.
@@ -58,11 +82,13 @@ func main() {
 	case "rm":
 		cmdRM(os.Args[2:])
 	case "list":
-		cmdList()
+		cmdList(os.Args[2:])
 	case "restore":
 		cmdRestore(os.Args[2:])
 	case "purge":
 		cmdPurge(os.Args[2:])
+	case "-version", "--version", "version":
+		fmt.Println("spare", effectiveVersion())
 	case "-h", "--help", "help":
 		fmt.Print(usage)
 	default:
@@ -211,23 +237,56 @@ func cmdRM(args []string) {
 	os.Exit(exitCode)
 }
 
-func cmdList() {
+type jsonEntry struct {
+	ID           string    `json:"id"`
+	Type         string    `json:"type"`
+	DeletedAt    time.Time `json:"deleted_at"`
+	OriginalPath string    `json:"original_path"`
+}
+
+func cmdList(args []string) {
+	jsonOut := false
+	for _, a := range args {
+		if a == "--json" {
+			jsonOut = true
+		}
+	}
+
 	entries, err := trash.List()
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "spare:", err)
 		os.Exit(1)
 	}
+
+	if jsonOut {
+		out := make([]jsonEntry, 0, len(entries))
+		for _, e := range entries {
+			kind := "file"
+			if e.IsDir {
+				kind = "dir"
+			}
+			out = append(out, jsonEntry{e.ID, kind, e.DeletedAt, e.OriginalPath})
+		}
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetIndent("", "  ")
+		if err := enc.Encode(out); err != nil {
+			fmt.Fprintln(os.Stderr, "spare:", err)
+			os.Exit(1)
+		}
+		return
+	}
+
 	if len(entries) == 0 {
 		fmt.Println("spare: trash is empty")
 		return
 	}
-	fmt.Printf("%-24s %-8s %-10s %s\n", "ID", "TYPE", "AGE", "ORIGINAL PATH")
+	fmt.Printf("%-14s %-6s %-10s %s\n", "ID", "TYPE", "AGE", "ORIGINAL PATH")
 	for _, e := range entries {
 		kind := "file"
 		if e.IsDir {
 			kind = "dir"
 		}
-		fmt.Printf("%-24s %-8s %-10s %s\n", e.ID, kind, humanAge(e.DeletedAt), e.OriginalPath)
+		fmt.Printf("%-14s %-6s %-10s %s\n", e.ID, kind, humanAge(e.DeletedAt), e.OriginalPath)
 	}
 }
 
@@ -255,33 +314,82 @@ func cmdRestore(args []string) {
 		}
 		id = a
 	}
+
+	// No id given: restore the most recently trashed item — the actual
+	// common case ("oops, undo my last delete") shouldn't require looking
+	// up an id first. List() already returns newest-first.
 	if id == "" {
-		fmt.Fprintln(os.Stderr, "usage: spare restore <id> [--force]")
-		os.Exit(2)
+		entries, err := trash.List()
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "spare:", err)
+			os.Exit(1)
+		}
+		if len(entries) == 0 {
+			fmt.Println("spare: trash is empty, nothing to restore")
+			return
+		}
+		id = entries[0].ID
 	}
+
 	e, err := trash.Restore(id, force)
-	if err == trash.ErrTargetExists {
+	switch err {
+	case nil:
+		fmt.Printf("spare: restored %s\n", e.OriginalPath)
+	case trash.ErrTargetExists:
 		fmt.Fprintf(os.Stderr, "spare: %s already exists — use --force to overwrite it\n", e.OriginalPath)
 		os.Exit(1)
-	}
-	if err != nil {
+	case trash.ErrAmbiguousID:
+		fmt.Fprintf(os.Stderr, "spare: %q matches more than one entry — use more characters, or `spare list` to see full ids\n", id)
+		os.Exit(1)
+	default:
 		fmt.Fprintln(os.Stderr, "spare:", err)
 		os.Exit(1)
 	}
-	fmt.Printf("spare: restored %s\n", e.OriginalPath)
 }
 
 func cmdPurge(args []string) {
 	days := 30
-	if len(args) > 0 {
-		if n, err := strconv.Atoi(args[0]); err == nil {
+	yes := false
+	for _, a := range args {
+		if a == "--yes" || a == "-y" {
+			yes = true
+			continue
+		}
+		if n, err := strconv.Atoi(a); err == nil {
 			days = n
 		}
 	}
+
+	// Purge is the one operation in spare that's actually irreversible —
+	// everything else exists specifically to avoid that. Dry-run by
+	// default: show what would be deleted, require an explicit --yes to
+	// actually do it, rather than trusting a bare day count alone.
+	if !yes {
+		entries, err := trash.List()
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "spare:", err)
+			os.Exit(1)
+		}
+		cutoff := time.Now().Add(-time.Duration(days) * 24 * time.Hour)
+		count := 0
+		for _, e := range entries {
+			if e.DeletedAt.Before(cutoff) {
+				count++
+			}
+		}
+		if count == 0 {
+			fmt.Printf("spare: nothing older than %d days to purge\n", days)
+			return
+		}
+		fmt.Printf("spare: would permanently delete %d item(s) older than %d days — this cannot be undone\n", count, days)
+		fmt.Println("spare: re-run with --yes to actually do it")
+		os.Exit(1)
+	}
+
 	n, err := trash.Purge(time.Duration(days) * 24 * time.Hour)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "spare:", err)
 		os.Exit(1)
 	}
-	fmt.Printf("spare: purged %d item(s) older than %d days\n", n, days)
+	fmt.Printf("spare: permanently purged %d item(s) older than %d days\n", n, days)
 }

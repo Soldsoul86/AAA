@@ -1,0 +1,83 @@
+# Release config for spare, one of the tools in the Soldsoul86/AAA monorepo.
+# This is a subfolder module — goreleaser is invoked from *inside*
+# spare/ by the root .github/workflows/release-spare.yml workflow
+# (working-directory: spare), so all paths here are relative to this folder.
+#
+# Test locally before ever tagging a real release:
+#   cd spare && GORELEASER_CURRENT_TAG=v0.1.0+spare goreleaser release --snapshot --clean
+# (the explicit tag override avoids goreleaser picking up another tool's
+# tag in this shared repo, which it will otherwise do during local testing)
+version: 2
+
+project_name: spare
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - "-s -w -X main.version={{.Version}}"
+
+archives:
+  # .Version includes the build-metadata suffix used for cross-tool
+  # uniqueness (e.g. "0.1.0+spare") — using Major/Minor/Patch instead
+  # keeps the actual downloadable filenames clean.
+  - name_template: "{{ .ProjectName }}_{{ .Major }}.{{ .Minor }}.{{ .Patch }}_{{ .Os }}_{{ .Arch }}"
+    formats: [tar.gz]
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+
+# .deb / .rpm packages, attached directly to the GitHub Release. Doesn't
+# require getting into official Debian/Fedora repos (a slow, multi-month
+# process not worth it before there's real demand) — this makes
+# `apt install ./spare.deb` / `dnf install ./spare.rpm` work today, covering
+# Linux's actual native install pattern for the most common distros.
+nfpms:
+  - id: spare
+    package_name: spare
+    vendor: Soldsoul86
+    homepage: "https://github.com/Soldsoul86/AAA/tree/main/spare"
+    maintainer: "Soldsoul86 <noreply@github.com>"
+    description: "Makes rm (and Remove-Item/del on Windows) recoverable — the safety net every AI coding agent needs underneath it."
+    license: "MIT"
+    formats:
+      - deb
+      - rpm
+    bindir: /usr/local/bin
+
+checksum:
+  name_template: "checksums.txt"
+
+snapshot:
+  version_template: "{{ incpatch .Version }}-next"
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+
+# Publishes a Homebrew formula to a separate tap repo, shared across all
+# tools in this monorepo. Requires a HOMEBREW_TAP_GITHUB_TOKEN secret with
+# write access to that repo — see docs/RELEASING.md.
+brews:
+  - repository:
+      owner: Soldsoul86
+      name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
+    directory: Formula
+    homepage: "https://github.com/Soldsoul86/AAA/tree/main/spare"
+    description: "Makes rm (and Remove-Item/del on Windows) recoverable."
+    license: "MIT"

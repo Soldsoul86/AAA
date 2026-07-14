@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -159,6 +160,77 @@ func TestRestore(t *testing.T) {
 	}
 	if len(entries) != 0 {
 		t.Fatalf("restored entry should be removed from the log, got %+v", entries)
+	}
+}
+
+func TestRestoreByUniquePrefix(t *testing.T) {
+	home := withTempHome(t)
+	src := filepath.Join(home, "prefix-restore.txt")
+	if err := os.WriteFile(src, []byte("content"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	e, err := Move(src)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	restored, err := Restore(e.ID[:4], false)
+	if err != nil {
+		t.Fatalf("Restore by 4-char prefix failed: %v", err)
+	}
+	if restored.ID != e.ID {
+		t.Fatalf("resolved to %q, want %q", restored.ID, e.ID)
+	}
+
+	// Regression check for a real bug: restoring by prefix must remove the
+	// entry from the log using its full ID, not the partial input — using
+	// the partial input would never match anything in the log, leaving a
+	// stale entry behind forever even though the file was already restored.
+	entries, err := List()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 0 {
+		t.Fatalf("log should be empty after a prefix-based restore, got %+v", entries)
+	}
+}
+
+func TestResolveIDAmbiguousPrefixRejected(t *testing.T) {
+	home := withTempHome(t)
+	// Force a shared prefix scenario by checking real IDs and only running
+	// the ambiguity assertion if we happen to get one — since IDs are
+	// random, directly engineering a collision deterministically means
+	// testing the mechanism via two entries and their actual shared
+	// leading character(s), which every non-empty prefix set has (a
+	// single hex character, e.g. "a", matches on average 1/16 of entries,
+	// and with enough entries in this test one is exceedingly likely).
+	for i := 0; i < 40; i++ {
+		src := filepath.Join(home, "many"+string(rune('a'+i))+".txt")
+		if err := os.WriteFile(src, []byte("x"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := Move(src); err != nil {
+			t.Fatal(err)
+		}
+	}
+	entries, err := List()
+	if err != nil {
+		t.Fatal(err)
+	}
+	// A single hex character as a prefix, with 40 random 12-hex-char IDs,
+	// is essentially guaranteed to match more than one.
+	prefix := entries[0].ID[:1]
+	matches := 0
+	for _, e := range entries {
+		if strings.HasPrefix(e.ID, prefix) {
+			matches++
+		}
+	}
+	if matches < 2 {
+		t.Skip("this run's random IDs didn't happen to share a 1-char prefix — inherently probabilistic, not flaky logic")
+	}
+	if _, err := Restore(prefix, false); err != ErrAmbiguousID {
+		t.Fatalf("Restore(%q) = %v, want ErrAmbiguousID (matched %d entries)", prefix, err, matches)
 	}
 }
 

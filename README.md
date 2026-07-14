@@ -15,6 +15,7 @@ command and does exactly one thing.
 | [permit](./permit) | Safety | Diagnoses why a Claude Code permission rule silently doesn't apply |
 | [actually](./actually) | Trust | Cross-checks a "tests pass" claim against the real last test run in the same session |
 | [exists](./exists) | Trust | Checks whether a package your agent just installed (npm/PyPI) actually exists in the real registry |
+| [spare](./spare) | Safety | Makes `rm`/`Remove-Item` recoverable — the safety net underneath every AI agent's delete command, on macOS, Linux, and Windows |
 
 ## See it catch something real
 
@@ -31,6 +32,10 @@ the last real test run:
 trusted:
 
 ![exists catching a hallucinated package name in real time](./exists/demo.gif)
+
+**[spare](./spare)** catches a real `rm` and makes it recoverable:
+
+![spare catching a real rm and restoring the file in real time](./spare/demo.gif)
 
 ## Verified, not vibes
 
@@ -70,12 +75,22 @@ concrete evidence in one place instead of six, so it's not just a claim.
   that's *already* been squatted, only one that's still unclaimed) — the
   README was rewritten to say so plainly rather than leave the stronger,
   less accurate claim standing.
+- **spare**: built from four real, severe, publicly filed incidents
+  (a custom OS with 78+ verified build iterations destroyed, 160+ hours of
+  work lost, an entire `~/Desktop` including installed applications gone)
+  — none of which `checkpoint` would have caught, since `git stash`
+  structurally cannot capture untracked files. Its own CI actually
+  *executes* the built binary on real `windows-latest`, `macos-latest`,
+  and `ubuntu-latest` GitHub Actions runners on every push, catching a
+  real Windows-specific bug (`%USERPROFILE%` vs `$HOME`) that cross-
+  compiling alone — the only verification every other tool here has ever
+  had for its Windows/Linux binaries — would never have surfaced.
 
 ## Why separate tools instead of one platform
 
 Each one is a narrow fix for a single, specific, well-evidenced annoyance —
 in the spirit of tools like `fzf`, `ripgrep`, and `atuin`, not a bundled
-suite you have to buy into all at once. Use one, use all seven, doesn't
+suite you have to buy into all at once. Use one, use all eight, doesn't
 matter — none of them depend on each other.
 
 ## Install
@@ -91,6 +106,7 @@ go install github.com/Soldsoul86/AAA/again@latest
 go install github.com/Soldsoul86/AAA/permit@latest
 go install github.com/Soldsoul86/AAA/actually@latest
 go install github.com/Soldsoul86/AAA/exists@latest
+go install github.com/Soldsoul86/AAA/spare@latest
 ```
 
 Or build from source today, before any release exists:
