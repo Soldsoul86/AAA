@@ -2,6 +2,7 @@ package trash
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -204,8 +205,13 @@ func TestResolveIDAmbiguousPrefixRejected(t *testing.T) {
 	// leading character(s), which every non-empty prefix set has (a
 	// single hex character, e.g. "a", matches on average 1/16 of entries,
 	// and with enough entries in this test one is exceedingly likely).
+	// Real bug, found via CI on windows-latest: 'a'+i for i up to 39
+	// overflows past 'z' (ASCII 122) into '{', '|', '}', '~' — and '|' is
+	// an illegal filename character on Windows (fine on Unix, which is
+	// exactly why this didn't show up locally). A plain index in the
+	// name sidesteps the whole rune-arithmetic trap.
 	for i := 0; i < 40; i++ {
-		src := filepath.Join(home, "many"+string(rune('a'+i))+".txt")
+		src := filepath.Join(home, fmt.Sprintf("many%d.txt", i))
 		if err := os.WriteFile(src, []byte("x"), 0o644); err != nil {
 			t.Fatal(err)
 		}
