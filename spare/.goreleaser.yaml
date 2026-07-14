@@ -81,3 +81,50 @@ brews:
     homepage: "https://github.com/Soldsoul86/AAA/tree/main/spare"
     description: "Makes rm (and Remove-Item/del on Windows) recoverable."
     license: "MIT"
+
+# Publishes a Scoop manifest to a separate bucket repo — the Windows
+# equivalent of the Homebrew tap above, reusing the same token (a classic
+# PAT with `repo` scope grants access to every repo the account owns, not
+# just homebrew-tap specifically — confirmed working the first time this
+# release actually runs, see docs/RELEASING.md for what to do if it isn't).
+scoops:
+  - repository:
+      owner: Soldsoul86
+      name: scoop-bucket
+      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
+    homepage: "https://github.com/Soldsoul86/AAA/tree/main/spare"
+    description: "Makes rm (and Remove-Item/del on Windows) recoverable."
+    license: "MIT"
+
+# Generates a winget manifest but does NOT push or open a pull request to
+# microsoft/winget-pkgs automatically — deliberately. Unlike the Homebrew
+# tap and Scoop bucket above (both self-hosted repos this account owns),
+# winget only has real user-facing value once it's actually merged into
+# Microsoft's official repo, which means publishing this for real means
+# posting a PR against a third party's repo — a separate, explicit
+# decision, not something to automate silently. skip_upload is the field
+# that actually prevents any push attempt (confirmed against the docs:
+# pull_request.enabled: false alone would still try to push to
+# `repository` and fail, since a fork of winget-pkgs under this account
+# doesn't exist yet) — the manifest is written to dist/ only. Publishing
+# it for real is a deliberate, manual follow-up: fork microsoft/winget-pkgs,
+# point `repository` at the fork, flip skip_upload to false and
+# pull_request.enabled to true, once there's enough real usage to justify
+# actually asking Microsoft to merge it.
+winget:
+  - name: spare
+    publisher: Soldsoul86
+    short_description: "Makes rm (and Remove-Item/del on Windows) recoverable."
+    license: "MIT"
+    homepage: "https://github.com/Soldsoul86/AAA/tree/main/spare"
+    publisher_url: "https://github.com/Soldsoul86"
+    publisher_support_url: "https://github.com/Soldsoul86/AAA/issues"
+    package_identifier: "Soldsoul86.spare"
+    skip_upload: true
+    repository:
+      owner: Soldsoul86
+      name: winget-pkgs
+      branch: "spare-{{.Version}}"
+      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
+      pull_request:
+        enabled: false

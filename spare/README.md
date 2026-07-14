@@ -144,9 +144,24 @@ go install github.com/Soldsoul86/AAA/spare@latest
 
 Then run `spare init` and open a new terminal.
 
-Prebuilt binaries, Homebrew, and `.deb`/`.rpm` packages are available once
-this has a tagged release — see
-[`docs/RELEASING.md`](./docs/RELEASING.md).
+Once this has a tagged release (see
+[`docs/RELEASING.md`](./docs/RELEASING.md)), it'll also be installable via:
+
+```
+brew install Soldsoul86/tap/spare                                    # macOS/Linux
+scoop bucket add Soldsoul86 https://github.com/Soldsoul86/scoop-bucket
+scoop install spare                                                  # Windows
+```
+
+`.deb`/`.rpm` packages are attached directly to each GitHub Release —
+`apt install ./spare_*.deb` / `dnf install ./spare-*.rpm` work without
+needing to be in official distro repos.
+
+A winget manifest is generated on every release too, but isn't published
+anywhere yet — winget only has real value once it's merged into
+Microsoft's official `winget-pkgs` repo, which means actually publishing
+it means opening a PR against a third party's repo. That's a deliberate,
+separate decision, not something bundled into routine releases.
 
 ## License
 

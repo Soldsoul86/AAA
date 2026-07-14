@@ -9,9 +9,26 @@ subfolder — tagging one tool never triggers a release for the others.
 1. **Homebrew tap repo** — one tap holds formulas for every tool in this
    monorepo: `Soldsoul86/homebrew-tap`. Already created; nothing to do here
    for a new tool.
-2. **`HOMEBREW_TAP_GITHUB_TOKEN`** — a repository secret on the **AAA** repo
-   with write access to the tap. Already configured; shared by every
-   release workflow in this repo.
+2. **Scoop bucket repo** — `Soldsoul86/scoop-bucket`, the Windows equivalent
+   of the tap. Also already created.
+3. **`HOMEBREW_TAP_GITHUB_TOKEN`** — a repository secret on the **AAA** repo
+   with write access to both repos above. A classic PAT with `repo` scope
+   grants access to every repo the account owns, not just homebrew-tap, so
+   the same secret is reused for the Scoop bucket rather than needing a
+   second one — confirmed working the first time spare's own release ran
+   `scoops:`, not assumed. If a future tool's release fails specifically on
+   the scoop step with a permission error, this is the first thing to
+   check: the token may have been narrowed to a fine-grained PAT scoped to
+   only one repo somewhere along the way.
+4. **winget is intentionally not fully wired up.** spare's config generates
+   a real winget manifest on every release, but `skip_upload: true` keeps
+   it local to `dist/winget/` rather than pushing anywhere. Unlike the tap
+   and bucket above, winget only has real user-facing value once it's
+   merged into the official `microsoft/winget-pkgs` repo — actually
+   publishing means forking that repo and opening a PR against a third
+   party, which is a deliberate, separate decision, not something to
+   automate as part of routine releases. See the comment in
+   `.goreleaser.yaml` for exactly what flipping this on later requires.
 
 ## Every release of spare
 
@@ -36,8 +53,11 @@ minutes:
   work without needing to get into official distro repos
 - `checksums.txt` is published alongside everything
 - `brew install Soldsoul86/tap/spare` works
+- `scoop bucket add Soldsoul86 https://github.com/Soldsoul86/scoop-bucket && scoop install spare` works
 - `install.sh` and `go install github.com/Soldsoul86/AAA/spare@latest` both
   resolve to this version
+- A winget manifest is generated but stays local to the release workflow's
+  `dist/` — not published anywhere yet, see above
 
 Also push the Go-convention tag separately (not automated by the workflow,
 since it uses a different naming scheme Go's module system expects):
